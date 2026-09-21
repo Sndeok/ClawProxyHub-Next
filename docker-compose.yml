@@ -1,0 +1,14 @@
+services:
+  cph:
+    build: .
+    image: clawproxyhub-next:local
+    container_name: clawproxyhub-next
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # 首次启动的管理员密码（已初始化后可删掉这一行）
+      CPH_ADMIN_PASSWORD: ${CPH_ADMIN_PASSWORD:-}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./data:/data

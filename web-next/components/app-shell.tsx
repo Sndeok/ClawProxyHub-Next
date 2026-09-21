@@ -1,0 +1,185 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import {
+  BarChart3, Boxes, ChevronLeft, FileText, GitBranch, KeyRound, ListTree,
+  Moon, Network, Plug, Power, Settings, Sun, Users,
+} from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { clearToken, getToken } from '@/lib/api'
+import { cn } from '@/lib/utils'
+
+interface NavItem {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  ready?: boolean // 本轮已实现；未实现的置灰并标注「开发中」
+}
+
+const NAV: { group: string; items: NavItem[] }[] = [
+  { group: '总览', items: [{ href: '/dashboard', label: '概览', icon: BarChart3, ready: true }] },
+  {
+    group: '资源',
+    items: [
+      { href: '/plugins', label: '插件', icon: Plug },
+      { href: '/accounts', label: '账号', icon: Users, ready: true },
+      { href: '/groups', label: '分组', icon: Boxes },
+      { href: '/proxies', label: '代理', icon: Network },
+    ],
+  },
+  {
+    group: '流量',
+    items: [
+      { href: '/routes', label: '路由', icon: GitBranch, ready: true },
+      { href: '/keys', label: '密钥', icon: KeyRound },
+      { href: '/logs', label: '日志', icon: FileText, ready: true },
+    ],
+  },
+  {
+    group: '运维',
+    items: [
+      { href: '/tasks', label: '任务', icon: ListTree },
+      { href: '/settings', label: '设置', icon: Settings },
+    ],
+  },
+]
+
+const TITLES: Record<string, { title: string; desc: string }> = {
+  '/dashboard': { title: '概览', desc: '调用量 / 成功率 / Token 用量总览' },
+  '/accounts': { title: '账号', desc: '上游账号登录 / 分组 / 调度' },
+  '/routes': { title: '路由', desc: '对外模型别名 → 分组映射与降级' },
+  '/logs': { title: '日志', desc: '调用日志与协议 / 用量明细' },
+}
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  // Next 静态导出带 trailingSlash，pathname 会是 /logs/ 这种形态；
+// 统一去掉尾斜杠，标题与选中态才能与导航表里的键对上。
+const rawPathname = usePathname()
+const pathname = rawPathname === '/' ? '/' : rawPathname.replace(/\/+$/, '')
+  const router = useRouter()
+  const [collapsed, setCollapsed] = useState(false)
+  const [dark, setDark] = useState(false)
+  const [ready, setReady] = useState(false)
+
+  // 未登录直接踢回登录页（静态导出没有服务端鉴权，只能前端守一道）
+  useEffect(() => {
+    if (!getToken()) {
+      router.replace('/login')
+      return
+    }
+    setReady(true)
+    setCollapsed(window.localStorage.getItem('cph-sidebar') === 'collapsed')
+    setDark(document.documentElement.classList.contains('dark'))
+  }, [router])
+
+  function toggleCollapsed() {
+    const next = !collapsed
+    setCollapsed(next)
+    window.localStorage.setItem('cph-sidebar', next ? 'collapsed' : 'expanded')
+  }
+
+  function toggleDark() {
+    const next = !dark
+    setDark(next)
+    document.documentElement.classList.toggle('dark', next)
+    window.localStorage.setItem('cph-theme', next ? 'dark' : 'light')
+  }
+
+  function logout() {
+    clearToken()
+    router.replace('/login')
+  }
+
+  // 根路径等价于概览页（静态导出下 / 与 /dashboard 是同一份内容）
+  const metaKey = pathname === '/' ? '/dashboard' : pathname
+  const meta = TITLES[metaKey] ?? { title: 'ClawProxyHub-Next', desc: '' }
+  if (!ready) return null
+
+  return (
+    <div className="flex h-screen w-full overflow-hidden">
+      <aside
+        className={cn(
+          'flex shrink-0 flex-col bg-[var(--sidebar)] transition-[width] duration-200',
+          collapsed ? 'w-[64px]' : 'w-[232px]',
+        )}
+      >
+        <div className="flex h-[60px] shrink-0 items-center gap-2 px-4">
+          <span className="grid h-8 w-8 place-items-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">
+            C
+          </span>
+          {!collapsed && (
+            <div className="min-w-0">
+              <div className="truncate text-[14px] font-semibold">
+                ClawProxyHub<span className="ml-1 rounded border px-1 text-[10px] font-medium text-muted-foreground">NEXT</span>
+              </div>
+              <div className="truncate text-[10.5px] text-muted-foreground">AI 反代网关</div>
+            </div>
+          )}
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-2 pb-4">
+          {NAV.map((group) => (
+            <div key={group.group} className="mb-1">
+              {!collapsed && (
+                <div className="px-2 pb-1 pt-3 text-[11px] font-medium text-muted-foreground">{group.group}</div>
+              )}
+              {group.items.map((item) => {
+                const active = item.href === '/dashboard' ? pathname === '/' || pathname === '/dashboard' : pathname === item.href
+                const Icon = item.icon
+                const cls = cn(
+                  'mb-0.5 flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors',
+                  active ? 'bg-accent font-semibold text-foreground' : 'text-muted-foreground hover:bg-accent/60',
+                  !item.ready && 'cursor-not-allowed opacity-45 hover:bg-transparent',
+                )
+                if (!item.ready) {
+                  return (
+                    <div key={item.href} className={cls} title="本轮重构待实现">
+                      <Icon className="h-4 w-4 shrink-0" />
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                      {!collapsed && <Badge className="ml-auto">开发中</Badge>}
+                    </div>
+                  )
+                }
+                return (
+                  <Link key={item.href} href={item.href} className={cls}>
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
+        </nav>
+
+        <button
+          onClick={toggleCollapsed}
+          className="flex h-10 shrink-0 items-center justify-center gap-1 border-t text-[12px] text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeft className={cn('h-4 w-4 transition-transform', collapsed && 'rotate-180')} />
+          {!collapsed && '收起'}
+        </button>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="flex h-[60px] shrink-0 items-center justify-between gap-4 border-b bg-background/85 px-5 backdrop-blur">
+          <div className="min-w-0">
+            <div className="truncate text-[16px] font-semibold">{meta.title}</div>
+            <div className="truncate text-[12px] text-muted-foreground">{meta.desc}</div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={toggleDark} aria-label="切换主题">
+              {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={logout} aria-label="退出登录">
+              <Power className="h-4 w-4" />
+            </Button>
+          </div>
+        </header>
+        <main className="min-h-0 flex-1 overflow-auto p-5">{children}</main>
+      </div>
+    </div>
+  )
+}

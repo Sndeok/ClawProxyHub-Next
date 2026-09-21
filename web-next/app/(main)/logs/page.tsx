@@ -1,0 +1,224 @@
+'use client'
+
+import { useCallback, useEffect, useState } from 'react'
+import { ArrowDown, ArrowUp, RefreshCw, Trash2 } from 'lucide-react'
+import { Badge, statusTone } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Input, Select } from '@/components/ui/input'
+import { Table, TableShell, Td, Th, Tr } from '@/components/ui/table'
+import { api } from '@/lib/api'
+import type { LogPage, RequestLog } from '@/lib/types'
+import { fmtCompact, fmtMs, fmtTime, hitRate } from '@/lib/utils'
+
+const PAGE_SIZE = 20
+
+export default function LogsPage() {
+  const [page, setPage] = useState(1)
+  const [data, setData] = useState<LogPage | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [status, setStatus] = useState('')
+  const [protocol, setProtocol] = useState('')
+  const [model, setModel] = useState('')
+  const [keyword, setKeyword] = useState('')
+  const [detail, setDetail] = useState<RequestLog | null>(null)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    const q = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) })
+    if (status) q.set('status', status)
+    if (protocol) q.set('protocol', protocol)
+    if (model) q.set('model', model)
+    if (keyword) q.set('q', keyword)
+    try {
+      setData(await api.get<LogPage>(`/admin/logs?${q.toString()}`))
+    } finally {
+      setLoading(false)
+    }
+  }, [page, status, protocol, model, keyword])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const logs = data?.logs ?? []
+  const total = data?.total ?? 0
+  // 本页汇总：Σ Token（输入+输出）与缓存命中率（命中是输入的子集）
+  const pageTokens = logs.reduce((n, r) => n + (r.InputTokens || 0) + (r.OutputTokens || 0), 0)
+  const pageInput = logs.reduce((n, r) => n + (r.InputTokens || 0), 0)
+  const pageCached = logs.reduce((n, r) => n + (r.CachedTokens || 0), 0)
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-2 pt-5">
+          <Select value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}>
+            <option value="">全部状态</option>
+            <option value="ok">成功</option>
+            <option value="error">失败</option>
+            <option value="4xx">4xx</option>
+            <option value="5xx">5xx</option>
+          </Select>
+          <Select value={protocol} onChange={(e) => { setProtocol(e.target.value); setPage(1) }}>
+            <option value="">全部协议</option>
+            <option value="chat_completions">OpenAI Chat</option>
+            <option value="responses">OpenAI Responses</option>
+            <option value="messages">Anthropic Messages</option>
+          </Select>
+          <Input
+            className="w-[180px]"
+            placeholder="模型名（模糊）"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (setPage(1), void load())}
+          />
+          <Input
+            className="w-[200px]"
+            placeholder="错误 / IP / UA"
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (setPage(1), void load())}
+          />
+          <Button variant="outline" size="sm" onClick={() => { setPage(1); void load() }}>
+            <RefreshCw className="h-3.5 w-3.5" /> 查询
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setStatus(''); setProtocol(''); setModel(''); setKeyword(''); setPage(1) }}
+          >
+            重置
+          </Button>
+          <div className="ml-auto flex items-center gap-3 text-[12px] text-muted-foreground">
+            <span className="tnum">共 {total} 条</span>
+            <span className="tnum">Σ {fmtCompact(pageTokens)}</span>
+            <span className="tnum">缓存命中率 {hitRate(pageCached, pageInput)}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      <TableShell>
+        <Table>
+          <thead>
+            <tr>
+              <Th>时间</Th>
+              <Th>状态</Th>
+              <Th>密钥</Th>
+              <Th>账号</Th>
+              <Th>模型</Th>
+              <Th>协议</Th>
+              <Th className="text-right">Token</Th>
+              <Th className="text-right">延迟</Th>
+              <Th>IP</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.map((r) => (
+              <Tr key={r.ID} className="cursor-pointer" onClick={() => setDetail(r)}>
+                <Td className="tnum whitespace-nowrap">{fmtTime(r.CreatedAt)}</Td>
+                <Td>
+                  <Badge tone={statusTone(r.Status)}>{r.Status}</Badge>
+                </Td>
+                <Td className="max-w-[120px] truncate">{r.key_name || '-'}</Td>
+                <Td className="max-w-[130px] truncate">{r.account_name || (r.AccountID ? `#${r.AccountID}` : '-')}</Td>
+                <Td className="max-w-[170px] truncate font-medium">{r.RequestedModel || r.Model || '-'}</Td>
+                <Td className="text-muted-foreground">{r.Protocol}</Td>
+                <Td className="tnum whitespace-nowrap text-right">
+                  <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex items-center gap-0.5 text-[var(--success)]">
+                      <ArrowDown className="h-3 w-3" />
+                      {fmtCompact(r.InputTokens)}
+                    </span>
+                    <span className="inline-flex items-center gap-0.5 text-muted-foreground">
+                      <ArrowUp className="h-3 w-3" />
+                      {fmtCompact(r.OutputTokens)}
+                    </span>
+                    {!!r.CachedTokens && (
+                      <span className="text-muted-foreground/80">缓存 {fmtCompact(r.CachedTokens)}</span>
+                    )}
+                  </span>
+                </Td>
+                <Td className="tnum whitespace-nowrap text-right">
+                  {fmtMs(r.FirstTokenMs)} / {fmtMs(r.LatencyMs)}
+                </Td>
+                <Td className="tnum text-muted-foreground">{r.ClientIP}</Td>
+              </Tr>
+            ))}
+            {!loading && logs.length === 0 && (
+              <Tr>
+                <Td colSpan={9} className="py-10 text-center text-muted-foreground">没有符合条件的日志</Td>
+              </Tr>
+            )}
+          </tbody>
+        </Table>
+      </TableShell>
+
+      <div className="flex items-center justify-between">
+        <span className="text-[12px] text-muted-foreground">
+          第 {data?.page ?? 1} 页 · 每页 {PAGE_SIZE}
+        </span>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" disabled={(data?.page ?? 1) <= 1} onClick={() => setPage((p) => p - 1)}>
+            上一页
+          </Button>
+          <Button variant="outline" size="sm" disabled={!data?.has_more} onClick={() => setPage((p) => p + 1)}>
+            下一页
+          </Button>
+        </div>
+      </div>
+
+      {detail && (
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-black/40"
+          onClick={() => setDetail(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="h-full w-[520px] max-w-full overflow-y-auto bg-background p-5 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-[15px] font-semibold">日志详情</h2>
+              <Button variant="ghost" size="sm" onClick={() => setDetail(null)}>
+                <Trash2 className="h-3.5 w-3.5" /> 关闭
+              </Button>
+            </div>
+            <dl className="text-[13px]">
+              {([
+                ['时间', fmtTime(detail.CreatedAt)],
+                ['状态', String(detail.Status)],
+                ['协议', detail.Protocol],
+                ['流式', detail.Stream ? '流式' : '非流式'],
+                ['请求模型', detail.RequestedModel || '-'],
+                ['上游模型', detail.Model || '-'],
+                ['密钥', detail.key_name || '-'],
+                ['账号', detail.account_name || (detail.AccountID ? `#${detail.AccountID}` : '-')],
+                ['输入 Token', String(detail.InputTokens || 0)],
+                ['输出 Token', String(detail.OutputTokens || 0)],
+                ['缓存命中', `${detail.CachedTokens || 0}（${hitRate(detail.CachedTokens, detail.InputTokens)}）`],
+                ['总 Token', String((detail.InputTokens || 0) + (detail.OutputTokens || 0))],
+                ['首字', fmtMs(detail.FirstTokenMs)],
+                ['总耗时', fmtMs(detail.LatencyMs)],
+                ['尝试', String(detail.Attempts || 1)],
+                ['结束原因', detail.FinishReason || '-'],
+                ['IP', detail.ClientIP || '-'],
+                ['User-Agent', detail.UserAgent || '-'],
+              ] as [string, string][]).map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-4 border-b py-2">
+                  <dt className="shrink-0 text-muted-foreground">{k}</dt>
+                  <dd className="break-all text-right">{v}</dd>
+                </div>
+              ))}
+            </dl>
+            {detail.ErrorBrief && (
+              <pre className="mt-4 max-h-[260px] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-[12px]">
+                {detail.ErrorBrief}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

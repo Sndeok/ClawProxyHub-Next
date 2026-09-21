@@ -1,0 +1,25 @@
+# 数据目录（SQLite / 插件 / 密钥）
+data/
+data-test/
+
+# 构建产物
+*.exe
+/cph
+release/
+
+# 前端
+web-next/node_modules/
+web-next/.next/
+web-next/out/
+web-next/next-env.d.ts
+web/dist/*
+!web/dist/.gitkeep
+
+# IDE / 环境
+.idea/
+.vscode/
+.env
+.env.local
+
+# 日志
+*.log
