@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Download, Plus, Power, Settings2, Trash2, Upload } from 'lucide-react'
+import { Download, Play, Plus, Power, Settings2, Trash2, Upload } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
@@ -21,6 +21,17 @@ interface MarketRow {
   description?: Record<string, string>
 }
 
+interface InstalledRow {
+  id: number
+  name: string
+  label: string
+  version: string
+  author: string
+  icon?: string
+  capabilities: string[] | null
+  running: boolean
+}
+
 interface SchemaProp {
   type?: string
   title?: string
@@ -30,7 +41,7 @@ interface SchemaProp {
 }
 
 export default function PluginsPage() {
-  const [installed, setInstalled] = useState<PluginInfo[]>([])
+  const [installed, setInstalled] = useState<InstalledRow[]>([])
   const [market, setMarket] = useState<MarketRow[]>([])
   const [source, setSource] = useState('')
 const [marketLoading, setMarketLoading] = useState(true)
@@ -48,7 +59,11 @@ const [marketLoading, setMarketLoading] = useState(true)
     try {
       setMarketLoading(true)
       const [p, m] = await Promise.all([
-        api.get<{ plugins: PluginInfo[] }>('/admin/plugins'),
+        // 已装列表含「已停止」的插件：否则卸载失败/启动失败后插件在界面上彻底消失
+        api.get<{ plugins: InstalledRow[] }>('/admin/plugins/installed').catch(async () => {
+          const fallback = await api.get<{ plugins: PluginInfo[] }>('/admin/plugins')
+          return { plugins: (fallback.plugins ?? []).map((x) => ({ ...x, running: true })) }
+        }),
         api.get<{ plugins: MarketRow[]; source: string }>('/admin/plugins/marketplace').catch(() => ({ plugins: [], source: 'error' })),
       ])
       setInstalled(p.plugins ?? [])
@@ -97,7 +112,7 @@ const [marketLoading, setMarketLoading] = useState(true)
     }
   }
 
-  async function togglePower(p: PluginInfo, start: boolean) {
+  async function togglePower(p: { name: string }, start: boolean) {
     setBusy(p.name)
     try {
       await api.post(`/admin/plugins/${p.name}/${start ? 'start' : 'stop'}`)
@@ -174,18 +189,28 @@ const [marketLoading, setMarketLoading] = useState(true)
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-[13.5px] font-medium">{p.label || p.name}</span>
-                  <Badge>v{p.version}</Badge>
+                  <Badge>v{p.version || '-'}</Badge>
+                  <Badge tone={p.running ? 'success' : 'warning'}>{p.running ? '运行中' : '已停止'}</Badge>
                   {(p.capabilities ?? []).slice(0, 4).map((c) => <Badge key={c}>{c}</Badge>)}
                 </div>
-                <div className="mt-0.5 text-[11.5px] text-muted-foreground">{p.name} · {p.author || 'unknown'}</div>
+                <div className="mt-0.5 text-[11.5px] text-muted-foreground">
+                  {p.name} · {p.author || 'unknown'}
+                  {!p.running && ' · 已停止的插件不参与路由，也不会出现在账号页'}
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => openSettings(p)} disabled={busy === p.name}>
+                <Button variant="outline" size="sm" onClick={() => openSettings(p)} disabled={busy === p.name || !p.running}>
                   <Settings2 className="h-3.5 w-3.5" /> 设置
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => togglePower(p, false)} disabled={busy === p.name}>
-                  <Power className="h-3.5 w-3.5" /> 停止
-                </Button>
+                {p.running ? (
+                  <Button variant="outline" size="sm" onClick={() => togglePower(p, false)} disabled={busy === p.name}>
+                    <Power className="h-3.5 w-3.5" /> 停止
+                  </Button>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => togglePower(p, true)} disabled={busy === p.name}>
+                    <Play className="h-3.5 w-3.5" /> 启动
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={() => uninstall(p)} disabled={busy === p.name}>
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
@@ -193,7 +218,7 @@ const [marketLoading, setMarketLoading] = useState(true)
             </div>
           ))}
           {!loading && installed.length === 0 && (
-            <p className="py-6 text-center text-[12.5px] text-muted-foreground">还没有运行中的插件，从下面市场安装</p>
+            <p className="py-6 text-center text-[12.5px] text-muted-foreground">还没有安装插件，从下面市场安装</p>
           )}
         </CardContent>
       </Card>

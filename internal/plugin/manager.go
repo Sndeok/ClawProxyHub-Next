@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	goplugin "github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
@@ -172,6 +173,8 @@ func (m *Manager) Start(ctx context.Context, binPath string) (*Instance, error) 
 		// 接住插件子进程的 stderr：go-plugin 默认只记「收到 N 字节」并丢弃内容，
 		// 插件自身的诊断信息（宿主回调失败、panic 栈）会被整个吞掉。
 		Stderr: newPluginStderr(filepath.Base(filepath.Dir(binPath))),
+		// 插件必须在 20s 内报出 RPC 地址：默认 60s 会让调用方长时间挂住
+		StartTimeout: 20 * time.Second,
 	})
 
 	rpcClient, err := client.Client()
@@ -220,6 +223,9 @@ func (m *Manager) Start(ctx context.Context, binPath string) (*Instance, error) 
 	return inst, nil
 }
 
+// restartTimeout 崩溃重启的握手上限（避免请求被卡死）。
+const restartTimeout = 20 * time.Second
+
 // Get 按名称取运行中的插件实例；进程已崩溃时自动重启。
 func (m *Manager) Get(name string) (*Instance, bool) {
 	m.mu.RLock()
@@ -240,7 +246,10 @@ func (m *Manager) Get(name string) (*Instance, bool) {
 		return nil, false
 	}
 	fmt.Printf("[plugin] %s crashed, restarting\n", name)
-	if inst2, err := m.Start(context.Background(), bin); err == nil {
+	// 重启握手带超时：无界握手会让正在处理中的请求永久挂起
+	ctx, cancel := context.WithTimeout(context.Background(), restartTimeout)
+	defer cancel()
+	if inst2, err := m.Start(ctx, bin); err == nil {
 		return inst2, true
 	}
 	fmt.Printf("[plugin] restart %s failed: %v\n", name, err)
@@ -347,6 +356,7 @@ func (m *Manager) StopAll() {
 		m.Stop(n)
 	}
 }
+
 // ---------- 插件子进程 stderr 转发 ----------
 
 // pluginStderr 按行把插件 stderr 转成核心日志（带插件名前缀）。

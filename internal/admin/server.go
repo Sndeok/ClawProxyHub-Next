@@ -56,6 +56,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/password", s.auth(s.changePassword))
 	mux.HandleFunc("GET /admin/me", s.auth(s.me))
 	mux.HandleFunc("GET /admin/plugins", s.auth(s.listPlugins))
+	mux.HandleFunc("GET /admin/plugins/installed", s.auth(s.listInstalledPlugins))
 	mux.HandleFunc("GET /admin/plugins/{name}/auth-methods", s.auth(s.authMethods))
 	mux.HandleFunc("GET /admin/plugins/{name}/settings", s.auth(s.pluginSettings))
 	mux.HandleFunc("GET /admin/plugins/{name}/task-capabilities", s.auth(s.pluginTaskCapabilities))

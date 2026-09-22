@@ -85,6 +85,42 @@ func (s *Server) authMethods(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"auth_methods": out})
 }
 
+// listInstalledPlugins GET /admin/plugins/installed — DB 记录的已安装插件（含运行状态）。
+// 「已安装」列表靠它渲染：停止中的插件也必须可见并能重新启动，避免"装完就消失"。
+func (s *Server) listInstalledPlugins(w http.ResponseWriter, r *http.Request) {
+	type installedView struct {
+		ID           int64    `json:"id"`
+		Name         string   `json:"name"`
+		Label        string   `json:"label"`
+		Version      string   `json:"version"`
+		Author       string   `json:"author"`
+		Icon         string   `json:"icon"`
+		Capabilities []string `json:"capabilities"`
+		Running      bool     `json:"running"`
+	}
+	var recs []model.Plugin
+	if err := s.db.Order("id").Find(&recs).Error; err != nil {
+		http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+		return
+	}
+	out := make([]installedView, 0, len(recs))
+	for _, rec := range recs {
+		v := installedView{ID: rec.ID, Name: rec.Name, Label: rec.Name, Version: rec.Version, Author: rec.Author}
+		// 运行中：以实例 manifest 为准（DB 快照可能只有 name/author）
+		if inst, ok := s.plugins.Get(rec.Name); ok && inst.Manifest != nil {
+			m := inst.Manifest
+			v.Running = true
+			v.Label, v.Version, v.Author = brandName(m), m.Version, m.Author
+			v.Capabilities = m.Capabilities
+			if _, ok := s.plugins.IconFile(m.Name); ok {
+				v.Icon = "/assets/plugins/" + m.Name + "/icon"
+			}
+		}
+		out = append(out, v)
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"plugins": out})
+}
+
 func viewAuthMethod(m *pb.AuthMethod) *authMethodView {
 	v := &authMethodView{ID: m.Id, Label: m.Label, Capabilities: m.Capabilities, Callback: m.Callback}
 	for _, f := range m.Fields {
