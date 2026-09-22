@@ -13,6 +13,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Sndeok/ClawProxyHub-Next/internal/plugin"
 )
@@ -233,11 +235,34 @@ func (s *Server) marketURL() string {
 
 // fetchMarket 拉线上市场索引（走代理配置）；不可达时回落内置离线清单。
 // online=false 表示返回的是离线兜底。
+// marketCache 市场索引结果缓存：远端拉取带超时，避免每次打开页面都干等。
+var marketCache struct {
+	mu      sync.Mutex
+	at      time.Time
+	entries []MarketEntry
+	online  bool
+}
+
+const marketCacheTTL = 60 * time.Second
+
 func (s *Server) fetchMarket() (entries []MarketEntry, online bool) {
-	entries, err := s.fetchMarketRemote()
-	if err != nil {
-		return offlineMarket(), false
+	marketCache.mu.Lock()
+	if time.Since(marketCache.at) < marketCacheTTL && marketCache.entries != nil {
+		cached, ok := marketCache.entries, marketCache.online
+		marketCache.mu.Unlock()
+		return cached, ok
 	}
+	marketCache.mu.Unlock()
+
+	entries, err := s.fetchMarketRemote()
+	marketCache.mu.Lock()
+	defer marketCache.mu.Unlock()
+	marketCache.at = time.Now()
+	if err != nil {
+		marketCache.entries, marketCache.online = offlineMarket(), false
+		return marketCache.entries, false
+	}
+	marketCache.entries, marketCache.online = entries, true
 	return entries, true
 }
 

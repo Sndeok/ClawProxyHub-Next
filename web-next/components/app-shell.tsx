@@ -16,16 +16,15 @@ interface NavItem {
   href: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  ready?: boolean // 本轮已实现；未实现的置灰并标注「开发中」
 }
 
 const NAV: { group: string; items: NavItem[] }[] = [
-  { group: '总览', items: [{ href: '/dashboard', label: '概览', icon: BarChart3, ready: true }] },
+  { group: '总览', items: [{ href: '/dashboard', label: '概览', icon: BarChart3, }] },
   {
     group: '资源',
     items: [
       { href: '/plugins', label: '插件', icon: Plug },
-      { href: '/accounts', label: '账号', icon: Users, ready: true },
+      { href: '/accounts', label: '账号', icon: Users, },
       { href: '/groups', label: '分组', icon: Boxes },
       { href: '/proxies', label: '代理', icon: Network },
     ],
@@ -33,9 +32,9 @@ const NAV: { group: string; items: NavItem[] }[] = [
   {
     group: '流量',
     items: [
-      { href: '/routes', label: '路由', icon: GitBranch, ready: true },
+      { href: '/routes', label: '路由', icon: GitBranch, },
       { href: '/keys', label: '密钥', icon: KeyRound },
-      { href: '/logs', label: '日志', icon: FileText, ready: true },
+      { href: '/logs', label: '日志', icon: FileText, },
     ],
   },
   {
@@ -52,6 +51,12 @@ const TITLES: Record<string, { title: string; desc: string }> = {
   '/accounts': { title: '账号', desc: '上游账号登录 / 分组 / 调度' },
   '/routes': { title: '路由', desc: '对外模型别名 → 分组映射与降级' },
   '/logs': { title: '日志', desc: '调用日志与协议 / 用量明细' },
+  '/plugins': { title: '插件', desc: '客户端插件安装 / 授权 / 任务能力' },
+  '/groups': { title: '分组', desc: '同插件账号池与出站代理' },
+  '/proxies': { title: '代理', desc: '出站代理配置与绑定' },
+  '/keys': { title: '密钥', desc: '客户端调用凭据与路由授权' },
+  '/tasks': { title: '任务', desc: '签到等维护任务调度与历史' },
+  '/settings': { title: '设置', desc: '系统参数与管理员密码' },
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -130,19 +135,9 @@ const pathname = rawPathname === '/' ? '/' : rawPathname.replace(/\/+$/, '')
                 const active = item.href === '/dashboard' ? pathname === '/' || pathname === '/dashboard' : pathname === item.href
                 const Icon = item.icon
                 const cls = cn(
-                  'mb-0.5 flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors',
-                  active ? 'bg-accent font-semibold text-foreground' : 'text-muted-foreground hover:bg-accent/60',
-                  !item.ready && 'cursor-not-allowed opacity-45 hover:bg-transparent',
-                )
-                if (!item.ready) {
-                  return (
-                    <div key={item.href} className={cls} title="本轮重构待实现">
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                      {!collapsed && <Badge className="ml-auto">开发中</Badge>}
-                    </div>
-                  )
-                }
+  'mb-0.5 flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors',
+  active ? 'bg-accent font-semibold text-foreground' : 'text-muted-foreground hover:bg-accent/60',
+)
                 return (
                   <Link key={item.href} href={item.href} className={cls}>
                     <Icon className="h-4 w-4 shrink-0" />

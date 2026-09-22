@@ -100,5 +100,6 @@ export interface PluginInfo {
   name: string
   label: string
   version: string
+  author: string
   capabilities: string[] | null
 }
