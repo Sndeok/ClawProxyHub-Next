@@ -25,15 +25,15 @@
   },
   {
     "name": "joycode",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "author": "cph",
     "label": {
       "en": "JoyCode",
       "zh": "JoyCode"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/joycode-v0.1.1/joycode-0.1.1.cphplugin",
-    "sha256": "7e51069b72b738c90439142986617234d2243c2471108c2b49eefd6e3e20f781"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/joycode-v0.1.2/joycode-0.1.2.cphplugin",
+    "sha256": "d0743d3cf908e865e8cc73c573c3c54fe5c98e6054a95706ed6b6ffc2af18558"
   },
   {
     "name": "lobsterai",
