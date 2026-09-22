@@ -24,6 +24,18 @@
     "sha256": "968b48610bc726c0b47612d39bf444aa67c8db0ef4a97f73e2379502f72cb541"
   },
   {
+    "name": "joycode",
+    "version": "0.1.0",
+    "author": "cph",
+    "label": {
+      "en": "JoyCode",
+      "zh": "JoyCode"
+    },
+    "published_at": "2026-09-22",
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/joycode-v0.1.0/joycode-0.1.0.cphplugin",
+    "sha256": "256c149290661f691dbe18833aa23e723d870085e0d68c118dc9a405d97247e3"
+  },
+  {
     "name": "lobsterai",
     "version": "0.1.13",
     "author": "cph",
