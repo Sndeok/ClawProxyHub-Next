@@ -211,12 +211,18 @@ func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
 }
 
 // updateGroup PUT /admin/groups/{id} —— 重命名分组（分组名唯一，冲突回 400）。
+// 分组级负载策略已废弃：策略只在「路由 > 全局默认」两层决定（router.effectiveStrategy），
+// 老字段仍接收但直接报错，避免调用方以为设置生效了。
 func (s *Server) updateGroup(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name     string `json:"name"`
 		Strategy string `json:"strategy"`
 	}
 	if !readBody(w, r, &body) {
+		return
+	}
+	if strings.TrimSpace(body.Strategy) != "" {
+		http.Error(w, `{"error":"分组级负载策略已废弃：请在路由上单独配置，或留空跟随全局默认"}`, http.StatusBadRequest)
 		return
 	}
 	var g model.Group
@@ -227,9 +233,6 @@ func (s *Server) updateGroup(w http.ResponseWriter, r *http.Request) {
 	updates := map[string]interface{}{}
 	if name := strings.TrimSpace(body.Name); name != "" {
 		updates["name"] = name
-	}
-	if body.Strategy != "" {
-		updates["strategy"] = body.Strategy
 	}
 	if len(updates) == 0 {
 		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})

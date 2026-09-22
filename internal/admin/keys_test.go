@@ -57,3 +57,38 @@ func TestCreateRouteStrategyRegression(t *testing.T) {
 		})
 	}
 }
+
+// TestUpdateGroupRejectsStrategy 回归：分组级策略是废弃字段，
+// 传了必须报错（而不是悄悄写进没人读的列，让调用方以为生效）。
+func TestUpdateGroupRejectsStrategy(t *testing.T) {
+	db := opsTestDB(t)
+	s := &Server{db: db}
+	g := model.Group{Name: "主池", PluginID: 1}
+	if err := db.Create(&g).Error; err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(map[string]interface{}{"name": "主池", "strategy": "random"})
+	req := httptest.NewRequest("PUT", "/admin/groups/1", strings.NewReader(string(payload)))
+	req.SetPathValue("id", "1")
+	w := httptest.NewRecorder()
+	s.updateGroup(w, req)
+	if w.Code != 400 {
+		t.Fatalf("带 strategy 的分组更新应被拒绝（400），实际 %d body=%s", w.Code, w.Body.String())
+	}
+	// 只改名（不带 strategy）仍可用
+	payload2, _ := json.Marshal(map[string]interface{}{"name": "备用池"})
+	req2 := httptest.NewRequest("PUT", "/admin/groups/1", strings.NewReader(string(payload2)))
+	req2.SetPathValue("id", "1")
+	w2 := httptest.NewRecorder()
+	s.updateGroup(w2, req2)
+	if w2.Code != 200 {
+		t.Fatalf("纯改名应成功，实际 %d body=%s", w2.Code, w2.Body.String())
+	}
+	var got model.Group
+	if err := db.First(&got, g.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "备用池" {
+		t.Fatalf("改名未生效：%q", got.Name)
+	}
+}

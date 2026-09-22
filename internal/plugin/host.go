@@ -123,21 +123,39 @@ func (h *HostService) GetSettings(ctx context.Context, r *pb.GetSettingsRequest)
 }
 
 // mergeOutboundDefaults 把 settings 里的出站标识合并进插件设置（不覆盖插件已填的值）。
+//
+// 用 json.RawMessage 解析：插件设置 schema 允许任意 JSON 值（数字 / 布尔 / 嵌套对象），
+// 若按 map[string]string 解析，遇到非字符串值会整体解析失败，插件自己的设置会被丢掉。
 func (h *HostService) mergeOutboundDefaults(values string) string {
-	cfg := map[string]string{}
-	if json.Unmarshal([]byte(values), &cfg) != nil {
-		cfg = map[string]string{}
+	if strings.TrimSpace(values) == "" {
+		values = "{}"
+	}
+	cfg := map[string]json.RawMessage{}
+	if err := json.Unmarshal([]byte(values), &cfg); err != nil {
+		return values // 非法 JSON / 非对象：原样返回，绝不吞掉插件设置
 	}
 	for k, v := range h.outboundIdentity() {
-		if strings.TrimSpace(cfg[k]) == "" && v != "" {
-			cfg[k] = v
+		if v == "" {
+			continue
 		}
+		// 插件自己填了非空字符串就不覆盖；非字符串值（数字/布尔/对象）同样视为已配置
+		if raw, ok := cfg[k]; ok {
+			var cur string
+			if err := json.Unmarshal(raw, &cur); err != nil || strings.TrimSpace(cur) != "" {
+				continue
+			}
+		}
+		b, err := json.Marshal(v)
+		if err != nil {
+			continue
+		}
+		cfg[k] = b
 	}
-	b, err := json.Marshal(cfg)
+	out, err := json.Marshal(cfg)
 	if err != nil {
 		return values
 	}
-	return string(b)
+	return string(out)
 }
 
 // outboundIdentity 读全局出站标识（settings 表，空 = 未配置）。

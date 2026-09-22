@@ -67,7 +67,9 @@ type Group struct {
 	ID        int64  `gorm:"primaryKey;autoIncrement"`
 	Name      string `gorm:"uniqueIndex;size:64"`
 	PluginID  int64  `gorm:"index"`
-	Strategy  string `gorm:"size:32;default:round_robin"` // round_robin/random/least_used
+	// 遗留列：分组级策略已废弃，负载策略见 Route.Strategy（路由级）与
+	// 设置 route.default_strategy（全局）。列保留只为兼容老库，代码不再读写。
+	Strategy  string `gorm:"size:32;default:round_robin"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

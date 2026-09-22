@@ -26,10 +26,6 @@ const KeyMarketplaceURL = "network.marketplace_url"
 // 只对 GitHub 域名生效；本项是传输层代理，支持 socks5 / socks5h / http(s)。
 const KeyMarketProxy = "network.market_proxy"
 
-// KeyModelCatalog 模型中心目录快照（JSON：{updated_at, models:[...]}）。
-// 手工导入的目录与账号上报的模型在读取时合并，不单独建表。
-const KeyModelCatalog = "models.catalog_json"
-
 // KeyRouteDefaultStrategy 全局默认负载策略：路由未单独配置时生效。
 const KeyRouteDefaultStrategy = "route.default_strategy"
 
@@ -138,16 +134,6 @@ func (s *Store) EnsureDefault(key, def string) {
 	var rec model.Setting
 	if err := s.db.Where("key = ?", key).First(&rec).Error; err != nil {
 		s.Set(key, def)
-	}
-}
-
-// OutboundIdentity 出站标识（空值表示用插件内置默认）。
-func (s *Store) OutboundIdentity() map[string]string {
-	return map[string]string{
-		"user_agent":     strings.TrimSpace(s.Get(KeyOutboundUserAgent, "")),
-		"client_name":    strings.TrimSpace(s.Get(KeyOutboundClientName, "")),
-		"client_version": strings.TrimSpace(s.Get(KeyOutboundClientVersion, "")),
-		"cli_version":    strings.TrimSpace(s.Get(KeyOutboundCLIVersion, "")),
 	}
 }
 
