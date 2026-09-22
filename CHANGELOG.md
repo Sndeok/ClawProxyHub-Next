@@ -13,6 +13,13 @@
 - Fixed 账号详情「模型目录」徽标改为显示上游模型名（Auto / GLM-5.3 / Kimi-K3 / Qwen3.8-Max …），
   内部 key（dmodel / gmodel / kmodel_latest）作为次要文字保留——满屏 key 看不出是什么模型。
 
+**网关 / 路由**
+- Fixed `/v1/models` 补回账号目录模型：对外模型 = 路由名 ∪ 账号目录模型，删掉路由不再让模型从列表消失。
+- Fixed 直连模型被误判 403：非路由请求改用 `HasRouteBinding`（key 是否显式绑定路由）判定。
+  此前用 `AuthorizedModels` 判空——它对未绑定 key 返回「全部路由名」（非空），
+  于是实例里只要存在一条路由，所有直连模型调用都会返回 `403 not in authorized routes`。
+  受限 key（显式绑定路由）语义不变：只能使用被授权的路由名。
+
 **插件清单**
 - Changed `internal/admin/offline_market.json` 同步到 qoder 0.1.7 / qoderwork 0.1.8：
   修复上游嵌套 SSE 信封里 `statusCode` 是字符串 `"OK"` 时整帧被丢弃导致的「上游返回空内容」。

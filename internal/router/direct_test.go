@@ -149,3 +149,38 @@ func TestStickyExpiringSticksAndPrefersExpiring(t *testing.T) {
 		t.Errorf("新会话应选快过期积分更多的 B：got %+v", res3.Account)
 	}
 }
+
+// TestHasRouteBindingAndDirectModels 回归：实例里只要有路由，未绑定 key 的直连模型
+// 也必须可用（此前用 AuthorizedModels 判空 → 返回「全部路由名」非空 → 一律 403）。
+func TestHasRouteBindingAndDirectModels(t *testing.T) {
+	db, _, _, group := seedAccounts(t)
+	rt := New(db)
+	route := &model.Route{Name: "alias-1", Strategy: "sticky",
+		GroupsJSON: fmt.Sprintf(`[{"group_id":%d,"weight":1,"model":"stub-mini"}]`, group.ID)}
+	mustCreate(t, db, route)
+
+	free := &model.Key{Name: "free", KeyCipher: "cipher-free", KeyHash: "hash-free"}
+	mustCreate(t, db, free)
+	if rt.HasRouteBinding(free) {
+		t.Fatal("未绑定 key 不应判定为受限")
+	}
+	if got := rt.DirectModels(free); len(got) != 2 {
+		t.Errorf("未绑定 key 应看到账号目录模型：%v", got)
+	}
+	if got := rt.AuthorizedModels(free); len(got) != 1 || got[0] != "alias-1" {
+		t.Errorf("未绑定 key 应看到全部路由名：%v", got)
+	}
+
+	bound := &model.Key{Name: "bound", KeyCipher: "cipher-bound", KeyHash: "hash-bound"}
+	mustCreate(t, db, bound)
+	mustCreate(t, db, &model.KeyRoute{KeyID: bound.ID, RouteID: route.ID})
+	if !rt.HasRouteBinding(bound) {
+		t.Fatal("绑定 key 应判定为受限")
+	}
+	if got := rt.DirectModels(bound); len(got) != 0 {
+		t.Errorf("受限 key 不应看到直连模型：%v", got)
+	}
+	if got := rt.AuthorizedModels(bound); len(got) != 1 || got[0] != "alias-1" {
+		t.Errorf("受限 key 只应看到被授权路由：%v", got)
+	}
+}

@@ -8,6 +8,10 @@
     },
     "items": [
       {
+        "zh": "对外模型 = 路由名 ∪ 账号目录模型：/v1/models 并集，直连模型不再误判 403",
+        "en": "Public models = routes ∪ account catalogs; direct models no longer rejected with 403"
+      },
+      {
         "zh": "插件升级不再因反代断流留下「半升级」：安装阶段与连接解绑 + 版本快照立即回写",
         "en": "Plugin upgrades survive proxy disconnects: install detached from the request context"
       },

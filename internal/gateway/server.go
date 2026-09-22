@@ -88,22 +88,21 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var data []map[string]interface{}
-	for _, name := range s.router.AuthorizedModels(key) {
-		data = append(data, map[string]interface{}{
-			"id": name, "object": "model", "owned_by": "cph",
-		})
-	}
-	if data == nil {
-		// 未配置任何路由：透出插件真实模型名，保持开箱可用
+	// 对外模型 = 路由名 ∪ 账号目录模型：账号里的模型默认可直调，
+	// 路由只是改名 / 映射层——删掉路由不该让模型从列表里消失。
+	// 受限 key（显式绑定路由）DirectModels 返回空，只透出被授权的路由名。
+	ids := publicModelIDs(s.router.AuthorizedModels(key), s.router.DirectModels(key))
+	if len(ids) == 0 {
+		// 既没有路由也没有账号目录：透出插件内置目录，保持开箱可用
 		for id := range s.plugins.Models() {
-			data = append(data, map[string]interface{}{
-				"id": id, "object": "model", "owned_by": "cph",
-			})
+			ids = append(ids, id)
 		}
 	}
-	if data == nil {
-		data = []map[string]interface{}{}
+	data := make([]map[string]interface{}, 0, len(ids))
+	for _, id := range ids {
+		data = append(data, map[string]interface{}{
+			"id": id, "object": "model", "owned_by": "cph",
+		})
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"object": "list", "data": data})
 }
@@ -316,13 +315,13 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, key *model.Key, r
 		log.Printf("[gateway] plugin %q declared endpoints %v; %s request converted via envelope",
 			pluginName, s.plugins.Endpoints(pluginName), protocol)
 	}
-	// 未命中路由时 key 若绑定了授权范围，则只允许路由名（安全边界）
-	if !isRoute {
-		if models := s.router.AuthorizedModels(key); len(models) > 0 {
-			writeJSON(w, http.StatusForbidden, errBody("invalid_request_error",
-				fmt.Errorf("model %q not in authorized routes", req.Model)))
-			return
-		}
+	// 未命中路由 = 直连模型：只有显式绑定路由的受限 key 才拒绝（安全边界）。
+	// 用 HasRouteBinding 而不是 AuthorizedModels 判空——后者对未绑定 key 返回
+	// 「全部路由名」（非空），会把所有直连模型一刀切成 403。
+	if !isRoute && s.router.HasRouteBinding(key) {
+		writeJSON(w, http.StatusForbidden, errBody("invalid_request_error",
+			fmt.Errorf("model %q not in authorized routes", req.Model)))
+		return
 	}
 
 	// 对话 UA：路由级 > 全局网关 UA > 客户端自带；只做解析下发，是否透传上游由插件决定。

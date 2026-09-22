@@ -12,15 +12,24 @@ import (
 	"github.com/Sndeok/ClawProxyHub-Next/internal/model"
 )
 
+// HasRouteBinding key 是否显式绑定了路由（key_routes 有记录）。
+// 绑定即受限：只允许被授权的路由名，直连模型与账号目录都不透出（安全边界）。
+// 注意：不能用 AuthorizedModels 判空代替——未绑定 key 返回的是「全部路由名」，
+// 非空，用它做判断会把所有直连模型一刀切成 403。
+func (r *Router) HasRouteBinding(key *model.Key) bool {
+	if key == nil {
+		return false
+	}
+	var count int64
+	r.db.Model(&model.KeyRoute{}).Where("key_id = ?", key.ID).Count(&count)
+	return count > 0
+}
+
 // DirectModels 账号目录里可见的模型 id（去重排序）。
 // key 绑定了路由授权时返回空：受限 key 只能使用被授权的路由名（安全边界）。
 func (r *Router) DirectModels(key *model.Key) []string {
-	if key != nil {
-		var count int64
-		r.db.Model(&model.KeyRoute{}).Where("key_id = ?", key.ID).Count(&count)
-		if count > 0 {
-			return nil
-		}
+	if r.HasRouteBinding(key) {
+		return nil
 	}
 	var accts []model.Account
 	r.activeWhere(r.db).Find(&accts)

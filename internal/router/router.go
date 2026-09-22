@@ -261,9 +261,7 @@ func (r *Router) findRoute(key *model.Key, name string) (*model.Route, error) {
 // 未绑范围 = 全部路由名；无任何路由时返回 nil（调用方 fallback 插件目录）。
 func (r *Router) AuthorizedModels(key *model.Key) []string {
 	var names []string
-	var count int64
-	r.db.Model(&model.KeyRoute{}).Where("key_id = ?", key.ID).Count(&count)
-	if count == 0 {
+	if !r.HasRouteBinding(key) {
 		r.db.Model(&model.Route{}).Order("name").Pluck("name", &names)
 		return names
 	}
