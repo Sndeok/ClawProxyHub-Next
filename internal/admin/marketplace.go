@@ -2,6 +2,7 @@
 package admin
 
 import (
+	"context"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
@@ -113,6 +114,14 @@ func (s *Server) marketplace(w http.ResponseWriter, r *http.Request) {
 
 // installMarket POST /admin/plugins/install-market — body: {name, author}
 // 同插件判定 = author+name（name 不保证全局唯一，与市场列表/已装列表同一判定键）。
+//
+// 响应是 NDJSON 进度流（插件包 20MB+，安装期间前端需要看到阶段而不是一个转圈）：
+//
+//	{"phase":"downloading","received":n,"total":m}
+//	{"phase":"stopping"|"installing"|"starting"}
+//	{"installed":"name"} 或 {"error":"..."}
+//
+// 客户端断开（前端取消）→ r.Context() 取消 → 下载/安装立即中断。
 func (s *Server) installMarket(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name   string `json:"name"`
@@ -137,13 +146,47 @@ func (s *Server) installMarket(w http.ResponseWriter, r *http.Request) {
 
 	dl := *entry // 下载 URL 套 GitHub 代理（索引里的原始地址保持干净）
 	dl.DownloadURL = s.withGitHubProxy(entry.DownloadURL)
-	zipPath, err := s.downloadToTemp(&dl)
+
+	pw := newProgressWriter(w)
+	zipPath, err := s.downloadToTemp(r.Context(), &dl, func(received, total int64) {
+		pw.send(map[string]interface{}{"phase": "downloading", "received": received, "total": total})
+	})
 	if err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadGateway)
+		pw.send(map[string]string{"error": err.Error()})
 		return
 	}
 	defer os.Remove(zipPath)
-	s.installZipPath(w, r, zipPath)
+
+	name, err := s.installZip(r.Context(), zipPath, func(phase string) {
+		pw.send(map[string]string{"phase": phase})
+	})
+	if err != nil {
+		pw.send(map[string]string{"error": err.Error()})
+		return
+	}
+	pw.send(map[string]string{"installed": name})
+}
+
+// progressWriter NDJSON 进度流：每行一个 JSON 事件，写后即刷。
+type progressWriter struct {
+	w  http.ResponseWriter
+	fl http.Flusher
+}
+
+func newProgressWriter(w http.ResponseWriter) *progressWriter {
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no") // 反代不缓冲
+	w.WriteHeader(http.StatusOK)
+	fl, _ := w.(http.Flusher)
+	return &progressWriter{w: w, fl: fl}
+}
+
+func (p *progressWriter) send(v interface{}) {
+	_ = json.NewEncoder(p.w).Encode(v) // Encode 自带换行
+	if p.fl != nil {
+		p.fl.Flush()
+	}
 }
 
 // installUpload POST /admin/plugins/install-upload — multipart 上传 .cphplugin。
@@ -171,21 +214,27 @@ func (s *Server) installUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tmp.Close()
-	s.installZipPath(w, r, tmp.Name())
-}
-
-// installZipPath 安装本地包文件并刷新目录。
-func (s *Server) installZipPath(w http.ResponseWriter, r *http.Request, zipPath string) {
-	name, err := s.plugins.InstallZip(r.Context(), zipPath)
+	name, err := s.installZip(r.Context(), tmp.Name(), nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"installed": name})
+}
+
+// installZipPath 安装本地包文件并刷新目录。
+// installZip 安装本地包文件并刷新目录（市场安装 / 上传共用）。
+// onPhase 透传给 InstallZip 报安装阶段（可为 nil）。
+func (s *Server) installZip(ctx context.Context, zipPath string, onPhase func(string)) (string, error) {
+	name, err := s.plugins.InstallZip(ctx, zipPath, onPhase)
+	if err != nil {
+		return "", err
+	}
 	// 安装/更新 = 显式启用：清掉持久化停用标记，与 InstallZip 已启动的实例保持一致
 	s.db.Exec(`INSERT INTO plugins (name, version, author, protocol_version, manifest_json, enabled) VALUES (?,?,?,?,?,1)
 		ON CONFLICT(name) DO UPDATE SET enabled = 1`, name, "", "cph", 0, "{}")
-	s.plugins.RefreshCatalog(r.Context())
-	writeJSON(w, http.StatusOK, map[string]interface{}{"installed": name})
+	s.plugins.RefreshCatalog(ctx)
+	return name, nil
 }
 
 // stopPlugin POST /admin/plugins/{name}/stop
@@ -283,13 +332,18 @@ func (s *Server) fetchMarketRemote() ([]MarketEntry, error) {
 	return fetchIndex(client, s.withGitHubProxy(s.marketURL()))
 }
 
-// downloadToTemp 下载市场包（走代理配置）并校验 sha256。
-func (s *Server) downloadToTemp(entry *MarketEntry) (string, error) {
+// downloadToTemp 下载市场包（走代理配置）并校验 sha256；report 上报进度（total 未知为 -1）。
+// ctx 取消（前端断开）时读取立即中断。
+func (s *Server) downloadToTemp(ctx context.Context, entry *MarketEntry, report func(received, total int64)) (string, error) {
 	client, err := marketClient(s.settings.MarketProxy(), marketDownloadTimeout)
 	if err != nil {
 		return "", err
 	}
-	resp, err := client.Get(entry.DownloadURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", entry.DownloadURL, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -302,7 +356,8 @@ func (s *Server) downloadToTemp(entry *MarketEntry) (string, error) {
 		return "", err
 	}
 	hasher := sha256.New()
-	n, err := io.Copy(io.MultiWriter(tmp, hasher), io.LimitReader(resp.Body, maxPluginPackageBytes))
+	src := &progressReader{r: resp.Body, total: resp.ContentLength, report: report}
+	n, err := io.Copy(io.MultiWriter(tmp, hasher), io.LimitReader(src, maxPluginPackageBytes))
 	if err != nil {
 		tmp.Close()
 		os.Remove(tmp.Name())
@@ -325,3 +380,26 @@ func (s *Server) downloadToTemp(entry *MarketEntry) (string, error) {
 }
 
 var _ = plugin.Manager{} // 保持引用（安装逻辑在 manager 侧）
+
+// progressReader 下载进度读取器：按块回调，200ms 节流避免刷爆前端。
+type progressReader struct {
+	r      io.Reader
+	total  int64
+	read   int64
+	last   time.Time
+	report func(received, total int64)
+}
+
+func (p *progressReader) Read(b []byte) (int, error) {
+	n, err := p.r.Read(b)
+	if n > 0 {
+		p.read += int64(n)
+		now := time.Now()
+		done := err == io.EOF
+		if p.report != nil && (done || now.Sub(p.last) >= 200*time.Millisecond) {
+			p.last = now
+			p.report(p.read, p.total)
+		}
+	}
+	return n, err
+}

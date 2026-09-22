@@ -5,6 +5,7 @@ package plugin
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -18,6 +19,7 @@ import (
 	"google.golang.org/grpc"
 	"gorm.io/gorm"
 
+	"github.com/Sndeok/ClawProxyHub-Next/internal/fingerprint"
 	"github.com/Sndeok/ClawProxyHub-Next/sdk"
 	pb "github.com/Sndeok/ClawProxyHub-Next/sdk/proto/cphv1"
 )
@@ -280,6 +282,31 @@ func (m *Manager) Endpoints(name string) []string {
 // Client 返回插件的 gRPC 客户端。
 func (i *Instance) Client() pb.ClawPluginClient { return i.rpc }
 
+// injectFingerprint 按入口协议生成客户端指纹头，序列化为 JSON 放进 extra
+// （键 = sdk.ExtraFingerprintHeaders）。只生成下发，是否采用由插件决定：
+//   - messages          → Claude Code 指纹（user-agent / x-app / anthropic-beta）
+//   - chat_completions  → Codex 指纹（UA / originator / session_id / turn 元数据 …）
+//   - responses         → 同上（Codex）
+//
+// 网关侧若已注入同名键（例如调试覆盖）则不覆盖。
+func injectFingerprint(req *pb.ChatRequest) {
+	headers := fingerprint.Headers(req.Source, "")
+	if len(headers) == 0 {
+		return
+	}
+	b, err := json.Marshal(fingerprint.ToMap(headers))
+	if err != nil {
+		return
+	}
+	if req.Extra == nil {
+		req.Extra = map[string]string{}
+	}
+	if _, exists := req.Extra[sdk.ExtraFingerprintHeaders]; exists {
+		return
+	}
+	req.Extra[sdk.ExtraFingerprintHeaders] = string(b)
+}
+
 // Chat 实现 gateway.PluginRegistry：按插件路由并泵出事件流。
 // pluginName 为空时按模型目录解析（非路由直连场景）。
 func (m *Manager) Chat(ctx context.Context, req *pb.ChatRequest, pluginName string, cred *pb.CredentialBlob) (chan *pb.StreamEvent, error) {
@@ -296,6 +323,7 @@ func (m *Manager) Chat(ctx context.Context, req *pb.ChatRequest, pluginName stri
 	}
 
 	req.Credential = cred
+	injectFingerprint(req)
 
 	stream, err := inst.rpc.Chat(ctx, req)
 	if err != nil {

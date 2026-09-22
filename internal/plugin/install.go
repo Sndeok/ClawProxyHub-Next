@@ -31,7 +31,14 @@ type PackageManifest struct {
 
 // InstallZip 安装一个 .cphplugin 包：校验 → 解压到插件目录 → 启动。
 // 返回插件名。已存在时覆盖安装（升级）。
-func (m *Manager) InstallZip(ctx context.Context, zipPath string) (string, error) {
+// onPhase 可选（nil 允许）：安装阶段回调 stopping / installing / starting，
+// 供市场安装进度流上报（安装 26MB 包 + 重启插件期间前端不再只有一个转圈）。
+func (m *Manager) InstallZip(ctx context.Context, zipPath string, onPhase func(string)) (string, error) {
+	phase := func(p string) {
+		if onPhase != nil {
+			onPhase(p)
+		}
+	}
 	zr, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return "", fmt.Errorf("open package: %w", err)
@@ -75,10 +82,12 @@ func (m *Manager) InstallZip(ctx context.Context, zipPath string) (string, error
 
 	// 2. 升级场景：先停旧进程
 	if _, running := m.Get(manifest.Name); running {
+		phase("stopping")
 		m.Stop(manifest.Name)
 	}
 
 	// 3. 解压到 <dir>/<name>/（清掉旧目录）
+	phase("installing")
 	target := filepath.Join(m.dir, manifest.Name)
 	if err := removeWithRetry(target); err != nil {
 		return "", fmt.Errorf("clean old install: %w", err)
@@ -108,6 +117,7 @@ func (m *Manager) InstallZip(ctx context.Context, zipPath string) (string, error
 	}
 
 	// 4. 启动
+	phase("starting")
 	if _, err := m.Start(ctx, binPath); err != nil {
 		return manifest.Name, fmt.Errorf("installed but failed to start: %w", err)
 	}

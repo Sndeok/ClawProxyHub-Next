@@ -1,12 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { Save } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Database, Download, RefreshCw, Save, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input, Select } from '@/components/ui/input'
 import { Field } from '@/components/ui/modal'
-import { api } from '@/lib/api'
+import { api, getToken } from '@/lib/api'
 import type { PluginInfo } from '@/lib/types'
 
 interface Settings {
@@ -19,6 +19,7 @@ interface Settings {
   outbound_client_name?: string
   outbound_client_version?: string
   outbound_cli_version?: string
+  gateway_user_agent?: string
   sticky_ttl?: string
   sticky_cleanup_period?: string
   route_default_strategy?: string
@@ -26,6 +27,40 @@ interface Settings {
 }
 
 interface SchemaProp { title?: string; description?: string; default?: string }
+
+// 系统信息（/admin/system/info）
+interface SystemInfo {
+  version: string
+  protocol_version: number
+  go_version: string
+  os: string
+  arch: string
+  started_at: string
+  uptime_seconds: number
+  data_dir: string
+  db_path: string
+  db_size_bytes: number
+  migration_version: number
+  migration_dirty: boolean
+  mem_alloc_bytes: number
+  goroutines: number
+  counts: Record<string, number>
+  pending_restore: boolean
+}
+
+function formatUptime(sec: number): string {
+  if (sec < 60) return `${sec} 秒`
+  if (sec < 3600) return `${Math.floor(sec / 60)} 分钟`
+  if (sec < 86400) return `${Math.floor(sec / 3600)} 小时 ${Math.floor((sec % 3600) / 60)} 分`
+  return `${Math.floor(sec / 86400)} 天 ${Math.floor((sec % 86400) / 3600)} 小时`
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1048576) return `${(n / 1024).toFixed(1)} KB`
+  if (n < 1073741824) return `${(n / 1048576).toFixed(1)} MB`
+  return `${(n / 1073741824).toFixed(2)} GB`
+}
 
 // 与后端 model.ValidRouteStrategy 保持一致的取值
 const ROUTE_STRATEGIES: [string, string][] = [
@@ -51,6 +86,69 @@ export default function SettingsPage() {
   const [outSchema, setOutSchema] = useState<Record<string, SchemaProp>>({})
   const [outValues, setOutValues] = useState<Record<string, string>>({})
   const OUT_KEYS = ['user_agent', 'client_name', 'client_version', 'cli_version'] as const
+  // 系统信息 / 备份 / 恢复
+  const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null)
+  const [sysBusy, setSysBusy] = useState('')
+  const [sysMsg, setSysMsg] = useState('')
+  const restoreRef = useRef<HTMLInputElement>(null)
+
+  const loadSysInfo = useCallback(async () => {
+    try {
+      setSysInfo(await api.get<SystemInfo>('/admin/system/info'))
+    } catch {
+      setSysInfo(null)
+    }
+  }, [])
+
+  // 下载备份：管理 API 需要 Bearer 头，不能直接用 <a href>，改用 fetch + blob
+  async function downloadBackup() {
+    setSysBusy('backup')
+    setSysMsg('')
+    try {
+      const resp = await fetch('/admin/system/backup', { headers: { Authorization: `Bearer ${getToken()}` } })
+      if (!resp.ok) throw new Error((await resp.text()) || `HTTP ${resp.status}`)
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '')
+      a.href = url
+      a.download = `cph-backup-${stamp}.zip`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      setSysMsg('备份已下载（含数据库快照与凭据密钥，请妥善保管）')
+    } catch (e) {
+      setSysMsg((e as Error).message)
+    } finally {
+      setSysBusy('')
+    }
+  }
+
+  async function uploadRestore(file: File) {
+    if (!window.confirm('恢复会覆盖当前数据库（重启后生效，旧库另存为 .bak）。确定继续？')) return
+    setSysBusy('restore')
+    setSysMsg('')
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const resp = await fetch('/admin/system/restore', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: fd,
+      })
+      const text = await resp.text()
+      let payload: { error?: string; message?: string; with_key?: boolean } = {}
+      try { payload = JSON.parse(text) } catch { payload = { error: text } }
+      if (!resp.ok) throw new Error(payload.error || text)
+      setSysMsg((payload.message || '已暂存') + (payload.with_key ? '（含凭据密钥）' : '（不含密钥：账号凭据需原密钥才能解开）'))
+      await loadSysInfo()
+    } catch (e) {
+      setSysMsg((e as Error).message)
+    } finally {
+      setSysBusy('')
+    }
+  }
 
   // 市场连通性：用当前表单值测（不落库），失败信息原样展示
   async function testMarket() {
@@ -83,11 +181,12 @@ export default function SettingsPage() {
 
   useEffect(() => {
     void load()
+    void loadSysInfo()
     api
       .get<{ version?: string; latest?: string; update_available?: boolean; release_url?: string }>('/admin/version')
       .then(setVersion)
       .catch(() => void 0)
-  }, [load])
+  }, [load, loadSysInfo])
 
   const loadPluginSettings = useCallback(async (name: string) => {
     if (!name) return
@@ -162,7 +261,25 @@ export default function SettingsPage() {
           <Field label="首字超时（秒）" hint="首字超时配置，路由级 > 全局">
             <Input type="number" value={s.first_event_timeout} onChange={(e) => setS({ ...s, first_event_timeout: Number(e.target.value) })} />
           </Field>
-          <Button onClick={() => save('gw', { first_event_timeout: Number(s.first_event_timeout) })} disabled={saving === 'gw'}>
+          <Field
+            label="全局网关 UA"
+            hint="对话请求出站 UA；路由未单独配置时生效，留空 = 透传客户端自带 UA。插件按需采用（优先级：路由 UA > 全局 > 客户端）"
+          >
+            <Input
+              value={s.gateway_user_agent ?? ''}
+              placeholder="留空 = 透传客户端 UA"
+              onChange={(e) => setS({ ...s, gateway_user_agent: e.target.value })}
+            />
+          </Field>
+          <Button
+            onClick={() =>
+              save('gw', {
+                first_event_timeout: Number(s.first_event_timeout),
+                gateway_user_agent: (s.gateway_user_agent ?? '').trim(),
+              })
+            }
+            disabled={saving === 'gw'}
+          >
             <Save className="h-3.5 w-3.5" /> 保存
           </Button>
         </CardContent>
@@ -309,6 +426,65 @@ export default function SettingsPage() {
           <Button onClick={() => save('sticky', { sticky_ttl: s.sticky_ttl, sticky_cleanup_period: s.sticky_cleanup_period })} disabled={saving === 'sticky'}>
             <Save className="h-3.5 w-3.5" /> 保存
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="xl:col-span-2">
+        <CardHeader>
+          <CardTitle>系统</CardTitle>
+          <span className="text-[11.5px] text-muted-foreground">运行时信息与数据备份</span>
+        </CardHeader>
+        <CardContent>
+          {sysInfo ? (
+            <div className="grid gap-1.5 text-[12.5px] text-muted-foreground md:grid-cols-2">
+              <div>核心 v{sysInfo.version} · 插件契约 v{sysInfo.protocol_version}</div>
+              <div>{sysInfo.os}/{sysInfo.arch} · {sysInfo.go_version} · {sysInfo.goroutines} goroutines</div>
+              <div>运行时长 {formatUptime(sysInfo.uptime_seconds)} · 内存 {formatBytes(sysInfo.mem_alloc_bytes)}</div>
+              <div>
+                数据库 {formatBytes(sysInfo.db_size_bytes)} · 迁移 v{sysInfo.migration_version}
+                {sysInfo.migration_dirty ? '（dirty，需修复）' : ''}
+              </div>
+              <div className="md:col-span-2">
+                账号 {sysInfo.counts.accounts ?? 0} · 分组 {sysInfo.counts.groups ?? 0} · 路由 {sysInfo.counts.routes ?? 0} · 密钥{' '}
+                {sysInfo.counts.keys ?? 0} · 调用日志 {sysInfo.counts.request_logs ?? 0} · 插件 {sysInfo.counts.plugins ?? 0}
+              </div>
+              <div className="break-all md:col-span-2">数据目录 {sysInfo.data_dir}</div>
+              {sysInfo.pending_restore && (
+                <div className="md:col-span-2 text-[var(--warning)]">
+                  已暂存恢复包：重启服务后自动换入（当前库会另存为 .bak-时间戳）
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-[12.5px] text-muted-foreground">系统信息不可用</p>
+          )}
+
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-3">
+            <Button variant="outline" onClick={() => void downloadBackup()} disabled={sysBusy === 'backup'}>
+              <Download className="h-3.5 w-3.5" /> {sysBusy === 'backup' ? '打包中…' : '下载备份'}
+            </Button>
+            <input
+              ref={restoreRef}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) void uploadRestore(f)
+                e.target.value = ''
+              }}
+            />
+            <Button variant="outline" onClick={() => restoreRef.current?.click()} disabled={sysBusy === 'restore'}>
+              <Upload className="h-3.5 w-3.5" /> {sysBusy === 'restore' ? '上传中…' : '恢复备份'}
+            </Button>
+            <Button variant="ghost" onClick={() => void loadSysInfo()} disabled={!!sysBusy}>
+              <RefreshCw className="h-3.5 w-3.5" /> 刷新
+            </Button>
+            <span className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground">
+              <Database className="h-3.5 w-3.5" /> 备份含数据库快照与凭据密钥（secret.key），恢复后需重启服务生效
+            </span>
+          </div>
+          {sysMsg && <p className="mt-2 text-[12.5px] text-muted-foreground">{sysMsg}</p>}
         </CardContent>
       </Card>
 

@@ -28,6 +28,8 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 			"outbound_client_name":    s.settings.Get(setting.KeyOutboundClientName, ""),
 			"outbound_client_version": s.settings.Get(setting.KeyOutboundClientVersion, ""),
 			"outbound_cli_version":    s.settings.Get(setting.KeyOutboundCLIVersion, ""),
+			// 全局网关 UA：路由未配置时生效（空 = 透传客户端 UA）
+			"gateway_user_agent": s.settings.GatewayUserAgent(),
 			// 全局默认负载策略（路由未单独配置时生效）
 			"route_default_strategy": s.settings.RouteDefaultStrategy(),
 			// 会话粘性策略
@@ -51,6 +53,8 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		OutboundClientName    string `json:"outbound_client_name"`
 		OutboundClientVersion string `json:"outbound_client_version"`
 		OutboundCLIVersion    string `json:"outbound_cli_version"`
+		// 全局网关 UA（对话请求出站标识；空 = 透传客户端 UA）
+		GatewayUserAgent string `json:"gateway_user_agent"`
 		// 全局默认负载策略：留空 = 不改
 		RouteDefaultStrategy string `json:"route_default_strategy"`
 		// 会话粘性
@@ -101,6 +105,11 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	gatewayUA := strings.TrimSpace(body.GatewayUserAgent)
+	if len(gatewayUA) > 256 || strings.ContainsAny(gatewayUA, "\r\n") {
+		http.Error(w, `{"error":"全局网关 UA 含非法字符（换行）或过长（>256）"}`, http.StatusBadRequest)
+		return
+	}
 	// 会话粘性：非法时长直接拒绝，避免用户以为生效了其实回退默认
 	if strings.TrimSpace(body.StickyTTL) == "" {
 		body.StickyTTL = s.settings.StickyTTL().String()
@@ -129,6 +138,7 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 	for k, v := range identity {
 		s.settings.Set(k, v)
 	}
+	s.settings.Set(setting.KeyGatewayUserAgent, gatewayUA)
 	s.settings.Set(setting.KeyStickyTTL, stickyTTL.String())
 	s.settings.Set(setting.KeyStickyCleanPeriod, stickyClean.String())
 	// 立即对运行中的路由生效（不必重启）

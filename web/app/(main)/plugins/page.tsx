@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import { Field, Modal } from '@/components/ui/modal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { api } from '@/lib/api'
+import { api, requestStream, type StreamEventBase } from '@/lib/api'
 import type { PluginInfo } from '@/lib/types'
 
 interface MarketRow {
@@ -33,6 +33,33 @@ interface InstalledRow {
   enabled?: boolean
 }
 
+// 安装进度（后端 NDJSON 流：downloading → stopping → installing → starting）。
+interface InstallProgress {
+  phase: string
+  received: number
+  total: number // -1 = 服务端未给 Content-Length
+}
+
+const PHASE_LABEL: Record<string, string> = {
+  downloading: '下载中',
+  stopping: '停止旧版本',
+  installing: '解压安装',
+  starting: '启动插件',
+}
+
+function progressText(name: string, p: InstallProgress): string {
+  const phase = PHASE_LABEL[p.phase] ?? p.phase
+  if (p.phase === 'downloading') {
+    const mb = (n: number) => (n / 1048576).toFixed(1)
+    if (p.total > 0) {
+      const pct = Math.min(100, Math.round((p.received / p.total) * 100))
+      return `${name}：${phase} ${mb(p.received)}/${mb(p.total)} MB（${pct}%）`
+    }
+    return `${name}：${phase} ${mb(p.received)} MB`
+  }
+  return `${name}：${phase}…`
+}
+
 interface SchemaProp {
   type?: string
   title?: string
@@ -53,6 +80,7 @@ const [marketLoading, setMarketLoading] = useState(true)
   const [schema, setSchema] = useState<Record<string, SchemaProp>>({})
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [progress, setProgress] = useState<{ name: string; p: InstallProgress } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = useCallback(async () => {
@@ -81,14 +109,34 @@ const [marketLoading, setMarketLoading] = useState(true)
   async function install(row: MarketRow) {
     setBusy(row.name)
     setNotice('')
+    setProgress({ name: row.name, p: { phase: 'downloading', received: 0, total: -1 } })
+    let failure = ''
     try {
-      await api.post('/admin/plugins/install-market', { name: row.name, author: row.author })
+      await requestStream<StreamEventBase>(
+        '/admin/plugins/install-market',
+        { name: row.name, author: row.author },
+        (ev) => {
+          if (ev.error) {
+            failure = ev.error
+            return
+          }
+          if (ev.installed) return
+          if (ev.phase) {
+            setProgress({
+              name: row.name,
+              p: { phase: ev.phase, received: ev.received ?? 0, total: ev.total ?? -1 },
+            })
+          }
+        },
+      )
+      if (failure) throw new Error(failure)
       setNotice(`${row.name} 安装完成`)
       await load()
     } catch (e) {
       setNotice((e as Error).message)
     } finally {
       setBusy('')
+      setProgress(null)
     }
   }
 
@@ -164,7 +212,10 @@ const [marketLoading, setMarketLoading] = useState(true)
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-end gap-3">
-        {notice && <span className="text-[12.5px] text-muted-foreground">{notice}</span>}
+        {progress && (
+          <span className="text-[12.5px] text-muted-foreground">{progressText(progress.name, progress.p)}</span>
+        )}
+        {!progress && notice && <span className="text-[12.5px] text-muted-foreground">{notice}</span>}
         <input
           ref={fileRef}
           type="file"

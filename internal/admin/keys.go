@@ -317,7 +317,7 @@ func (s *Server) listRoutes(w http.ResponseWriter, r *http.Request) {
 var routeInsertFields = []string{
 	"name", "strategy", "groups_json", "timeout_seconds",
 	"failover_enabled", "failover_on_4xx", "failover_on_5xx",
-	"failover_group_id", "failover_model",
+	"failover_group_id", "failover_model", "user_agent",
 }
 
 // routeBody 创建/编辑路由共用的请求体。
@@ -331,6 +331,8 @@ type routeBody struct {
 	FailoverOn5xx   bool                    `json:"failover_on_5xx"`
 	FailoverGroupID *int64                  `json:"failover_group_id"`
 	FailoverModel   string                  `json:"failover_model"`
+	// UserAgent 路由级出站 UA：空 = 全局网关 UA，再空则透传客户端 UA
+	UserAgent string `json:"user_agent"`
 }
 
 // validate 降级开启时必须配齐：触发状态类（4xx/5xx 至少一项）+ 降级分组 + 降级模型。
@@ -344,6 +346,9 @@ func (b *routeBody) validate() string {
 	}
 	if b.TimeoutSeconds < 0 || b.TimeoutSeconds > 3600 {
 		return "timeout_seconds 需在 0–3600 秒之间（0 = 跟随全局）"
+	}
+	if len(b.UserAgent) > 256 {
+		return "user_agent 过长（≤256 字符）"
 	}
 	if b.FailoverEnabled {
 		if !b.FailoverOn4xx && !b.FailoverOn5xx {
@@ -372,6 +377,7 @@ func (s *Server) createRoute(w http.ResponseWriter, r *http.Request) {
 		TimeoutSeconds: body.TimeoutSeconds, FailoverEnabled: body.FailoverEnabled,
 		FailoverOn4xx: body.FailoverOn4xx, FailoverOn5xx: body.FailoverOn5xx,
 		FailoverGroupID: body.FailoverGroupID, FailoverModel: body.FailoverModel,
+		UserAgent: body.UserAgent,
 	}
 	// Select 显式列出列：确保空策略（跟随全局）不被列默认值覆盖
 	if err := s.db.Select(routeInsertFields).Create(&rt).Error; err != nil {
@@ -406,6 +412,7 @@ func (s *Server) updateRoute(w http.ResponseWriter, r *http.Request) {
 	rt.FailoverOn5xx = body.FailoverOn5xx
 	rt.FailoverGroupID = body.FailoverGroupID
 	rt.FailoverModel = body.FailoverModel
+	rt.UserAgent = body.UserAgent
 	if err := s.db.Save(&rt).Error; err != nil {
 		http.Error(w, `{"error":"save failed"}`, http.StatusInternalServerError)
 		return

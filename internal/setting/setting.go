@@ -29,6 +29,9 @@ const KeyMarketProxy = "network.market_proxy"
 // KeyRouteDefaultStrategy 全局默认负载策略：路由未单独配置时生效。
 const KeyRouteDefaultStrategy = "route.default_strategy"
 
+// KeyGatewayUserAgent 全局网关 UA：路由未配置时使用；空 = 透传客户端 UA。
+const KeyGatewayUserAgent = "gateway.user_agent"
+
 // KeyLogRetentionDays 调用日志保留天数（0 = 保留全部，不自动清理）。
 const KeyLogRetentionDays = "logs.retention_days"
 
@@ -103,6 +106,11 @@ func (s *Store) FirstEventTimeout() time.Duration {
 		n = defaultFirstEventTimeout
 	}
 	return time.Duration(n) * time.Second
+}
+
+// GatewayUserAgent 全局网关 UA（空 = 未配置，网关透传客户端 UA）。
+func (s *Store) GatewayUserAgent() string {
+	return strings.TrimSpace(s.Get(KeyGatewayUserAgent, ""))
 }
 
 // GitHubProxy GitHub 代理前缀（以 / 结尾与否均可；空 = 直连）。

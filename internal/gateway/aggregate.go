@@ -51,7 +51,12 @@ func (c *aggregateCore) feed(ev *pb.StreamEvent) {
 	case *pb.StreamEvent_MessageFinish:
 		c.finish = e.MessageFinish.FinishReason
 		if u := e.MessageFinish.Usage; u != nil {
-			c.usage = *u
+			// 逐字段复制：pb.Usage 内含 protoimpl.MessageState（sync.Mutex），整体赋值会复制锁
+			c.usage = pb.Usage{
+				InputTokens: u.InputTokens, OutputTokens: u.OutputTokens,
+				CachedTokens: u.CachedTokens, CreditUsed: u.CreditUsed,
+				CacheCreationTokens: u.CacheCreationTokens,
+			}
 		}
 	}
 }

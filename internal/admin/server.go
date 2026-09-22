@@ -29,14 +29,17 @@ type Server struct {
 	settings       *setting.Store
 	marketplaceURL string
 	routes         *router.Router // 会话粘性策略热更新用（可空）
+	dataDir        string         // 系统信息 / 备份 / 恢复用
+	dbPath         string         // SQLite 文件路径（备份快照源）
 }
 
 // New 创建管理后台；表空且配置了 CPH_ADMIN_PASSWORD 时自动引导建号。
 // marketplaceURL / marketProxy 来自环境变量，仅作为首次启动的默认值写入设置表。
-func New(db *gorm.DB, accounts *account.Service, plugins *plugin.Manager, engine *task.Engine, settings *setting.Store, marketplaceURL, marketProxy string, routes *router.Router) *Server {
+func New(db *gorm.DB, accounts *account.Service, plugins *plugin.Manager, engine *task.Engine, settings *setting.Store, marketplaceURL, marketProxy string, routes *router.Router, dataDir, dbPath string) *Server {
 	s := &Server{
 		db: db, accounts: accounts, plugins: plugins, engine: engine,
 		settings: settings, marketplaceURL: marketplaceURL, routes: routes,
+		dataDir: dataDir, dbPath: dbPath,
 	}
 	// 市场地址与出站代理初始化：未配置时落环境变量默认值（env 缺省 = 内置默认 / 直连），
 	// 用户后续可在系统设置修改；生效顺序：settings 配置 > env 默认 > 离线兜底
@@ -110,6 +113,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /admin/settings", s.auth(s.getSettings))
 	mux.HandleFunc("PUT /admin/settings", s.auth(s.putSettings))
 	mux.HandleFunc("POST /admin/settings/test-market", s.auth(s.testMarket))
+	mux.HandleFunc("GET /admin/system/info", s.auth(s.systemInfo))
+	mux.HandleFunc("GET /admin/system/backup", s.auth(s.exportBackup))
+	mux.HandleFunc("POST /admin/system/restore", s.auth(s.importBackup))
 	mux.HandleFunc("GET /admin/task-rules", s.auth(s.listTaskRules))
 	mux.HandleFunc("POST /admin/task-rules", s.auth(s.createTaskRule))
 	mux.HandleFunc("POST /admin/task-rules/{id}/toggle", s.auth(s.toggleTaskRule))

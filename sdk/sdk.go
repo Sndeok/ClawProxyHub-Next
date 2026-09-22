@@ -21,6 +21,19 @@ const (
 	MagicCookieVal  string = "claw-proxy-hub-plugin"
 	// HostBrokerID 宿主 ClawHost 服务在 broker 上的固定通道号。
 	HostBrokerID uint32 = 1000
+
+	// ExtraClientUserAgent ChatRequest.extra 键：本次对话应使用的 User-Agent。
+	// 核心按「路由 UA > 全局网关 UA > 客户端 UA」解析后注入；插件按需透传上游。
+	ExtraClientUserAgent string = "client_user_agent"
+
+	// ExtraFingerprintHeaders ChatRequest.extra 键：按入口协议生成的客户端指纹头
+	// （JSON map，messages = Claude Code / chat_completions·responses = Codex）。
+	// 插件按需采用，让上游看到「官方客户端」形态。
+	ExtraFingerprintHeaders string = "fingerprint_headers"
+
+	// SettingBrowserUserAgent 宿主 GetSettings 合并视图的保留键：全局浏览器 UA
+	// （空 / 缺失 = 插件用内置值）。
+	SettingBrowserUserAgent string = "_browser_user_agent"
 )
 
 // HandshakeConfig go-plugin 进程握手配置。

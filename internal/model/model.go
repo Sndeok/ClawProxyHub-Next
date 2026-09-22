@@ -21,13 +21,13 @@ type Plugin struct {
 	Version         string `gorm:"size:32"`
 	Author          string `gorm:"size:64"`
 	ProtocolVersion int32
-	ManifestJSON    string    `gorm:"column:manifest_json"`
-	SettingsJSON    string    `gorm:"column:settings_json;default:'{}'"`
+	ManifestJSON    string `gorm:"column:manifest_json"`
+	SettingsJSON    string `gorm:"column:settings_json;default:'{}'"`
 	// Enabled 持久化启停：管理页「停止」置 false，重启（含容器重建）后保持停止；
 	// 启动时 core 读它决定是否拉起插件（cmd/cph/main.go）。
-	Enabled         bool      `gorm:"default:true"`
-	InstalledAt     time.Time `gorm:"column:installed_at"`
-	UpdatedAt       time.Time `gorm:"column:updated_at"`
+	Enabled     bool      `gorm:"default:true"`
+	InstalledAt time.Time `gorm:"column:installed_at"`
+	UpdatedAt   time.Time `gorm:"column:updated_at"`
 }
 
 // TableName 显式声明，保持与迁移 SQL 的表名一致。
@@ -66,9 +66,9 @@ func (AccountGroup) TableName() string { return "account_groups" }
 
 // Group 分组：某插件下的账号池（plugin_id 限定，跨插件无意义）。
 type Group struct {
-	ID        int64  `gorm:"primaryKey;autoIncrement"`
-	Name      string `gorm:"uniqueIndex;size:64"`
-	PluginID  int64  `gorm:"index"`
+	ID       int64  `gorm:"primaryKey;autoIncrement"`
+	Name     string `gorm:"uniqueIndex;size:64"`
+	PluginID int64  `gorm:"index"`
 	// 遗留列：分组级策略已废弃，负载策略见 Route.Strategy（路由级）与
 	// 设置 route.default_strategy（全局）。列保留只为兼容老库，代码不再读写。
 	Strategy  string `gorm:"size:32;default:round_robin"`
@@ -141,8 +141,10 @@ type Route struct {
 	FailoverOn5xx   bool   `gorm:"column:failover_on_5xx;default:false"`
 	FailoverGroupID *int64 `gorm:"column:failover_group_id"`
 	FailoverModel   string `gorm:"column:failover_model;size:128;default:''"`
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// 出站 User-Agent（路由级）：空 = 跟随全局网关 UA，再空则透传客户端 UA
+	UserAgent string `gorm:"column:user_agent;size:256;default:''"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 // RouteGroupEntry groups_json 数组元素：分组 + 该分组下使用的真实模型 id。

@@ -98,6 +98,8 @@ export interface RouteInfo {
   FailoverOn5xx: boolean
   FailoverGroupID: number | null
   FailoverModel: string
+  // 路由级出站 UA：空 = 跟随全局网关 UA，再空则透传客户端 UA
+  UserAgent: string
 }
 
 export interface ModelInfo {

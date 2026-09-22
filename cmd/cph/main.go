@@ -90,6 +90,11 @@ func run() error {
 		return fmt.Errorf("create plugin dir: %w", err)
 	}
 
+	// 恢复暂存换入必须在打开库之前：换文件 + 清理 -wal/-shm 残留
+	if err := database.ApplyPendingRestore(cfg.DatabaseDSN, cfg.DataDir); err != nil {
+		return fmt.Errorf("apply pending restore: %w", err)
+	}
+
 	db, err := database.Open(ctx, cfg.DatabaseDSN)
 	if err != nil {
 		return err
@@ -140,7 +145,7 @@ func run() error {
 	rt.SetDefaultStrategy(settings.RouteDefaultStrategy())
 	rt.StartJanitor(ctx)
 	gw := gateway.New(db, cfg.DataDir, plugins, rt, accounts, settings)
-	adminSrv := admin.New(db, accounts, plugins, engine, settings, cfg.MarketplaceURL, cfg.MarketProxy, rt)
+	adminSrv := admin.New(db, accounts, plugins, engine, settings, cfg.MarketplaceURL, cfg.MarketProxy, rt, cfg.DataDir, cfg.DatabaseDSN)
 
 	mux := http.NewServeMux()
 	mux.Handle("/v1/", gw.Handler())

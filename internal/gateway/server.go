@@ -20,6 +20,7 @@ import (
 	"github.com/Sndeok/ClawProxyHub-Next/internal/model"
 	"github.com/Sndeok/ClawProxyHub-Next/internal/router"
 	"github.com/Sndeok/ClawProxyHub-Next/internal/util"
+	"github.com/Sndeok/ClawProxyHub-Next/sdk"
 	pb "github.com/Sndeok/ClawProxyHub-Next/sdk/proto/cphv1"
 )
 
@@ -57,6 +58,8 @@ type PluginRegistry interface {
 // SettingsReader 全局设置读取（setting.Store 注入，nil 时走默认值）。
 type SettingsReader interface {
 	FirstEventTimeout() time.Duration
+	// GatewayUserAgent 全局网关 UA（空 = 未配置，回落到客户端 UA）。
+	GatewayUserAgent() string
 }
 
 // New 创建网关。
@@ -320,6 +323,22 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, key *model.Key, r
 				fmt.Errorf("model %q not in authorized routes", req.Model)))
 			return
 		}
+	}
+
+	// 对话 UA：路由级 > 全局网关 UA > 客户端自带；只做解析下发，是否透传上游由插件决定。
+	routeUA := ""
+	if resolved != nil && resolved.Route != nil {
+		routeUA = strings.TrimSpace(resolved.Route.UserAgent)
+	}
+	globalUA := ""
+	if s.settings != nil {
+		globalUA = strings.TrimSpace(s.settings.GatewayUserAgent())
+	}
+	if ua := firstNonEmpty(routeUA, globalUA, strings.TrimSpace(r.UserAgent())); ua != "" {
+		if req.Extra == nil {
+			req.Extra = map[string]string{}
+		}
+		req.Extra[sdk.ExtraClientUserAgent] = ua
 	}
 
 	var cred *pb.CredentialBlob
@@ -667,4 +686,14 @@ func clientIP(r *http.Request) string {
 		return host
 	}
 	return r.RemoteAddr
+}
+
+// firstNonEmpty 返回第一个非空字符串（路由 UA > 全局 UA > 客户端 UA）。
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }

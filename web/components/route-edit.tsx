@@ -75,6 +75,7 @@ export function RouteEdit({
   const [fo5xx, setFo5xx] = useState(false)
   const [foGroup, setFoGroup] = useState(0)
   const [foModel, setFoModel] = useState('')
+  const [userAgent, setUserAgent] = useState('')
   const [models, setModels] = useState<string[]>([])
   const globalStrategy = defaultStrategy
   const [busy, setBusy] = useState(false)
@@ -103,6 +104,7 @@ export function RouteEdit({
       setFo5xx(!!route.FailoverOn5xx)
       setFoGroup(route.FailoverGroupID ?? 0)
       setFoModel(route.FailoverModel || '')
+      setUserAgent(route.UserAgent || '')
     } else {
       setName('')
       setStrategy('')
@@ -113,6 +115,7 @@ export function RouteEdit({
       setFo5xx(false)
       setFoGroup(0)
       setFoModel('')
+      setUserAgent('')
     }
   }, [open, route, groups])
 
@@ -146,6 +149,7 @@ export function RouteEdit({
       failover_on_5xx: fo5xx,
       failover_group_id: foEnabled ? foGroup : null,
       failover_model: foEnabled ? foModel.trim() : '',
+      user_agent: userAgent.trim(),
     }
     try {
       if (route) await api.put(`/admin/routes/${route.ID}`, body)
@@ -254,6 +258,13 @@ export function RouteEdit({
           <option key={m} value={m} />
         ))}
       </datalist>
+
+      <Field
+        label="出站 User-Agent"
+        hint="本路由对话请求使用的 UA；留空 = 跟随「设置 → 全局网关 UA」，再留空则透传客户端自带 UA。插件按需采用"
+      >
+        <Input value={userAgent} placeholder="留空 = 跟随全局" onChange={(e) => setUserAgent(e.target.value)} />
+      </Field>
 
       <Field label="首字超时（秒）" hint="0 = 跟随全局设置">
         <Input
