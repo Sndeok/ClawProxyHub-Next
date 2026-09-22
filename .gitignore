@@ -13,6 +13,8 @@ web/.next/
 web/out/
 web/dist/*
 !web/dist/.gitkeep
+web/next-env.d.ts
+*.tsbuildinfo
 
 # IDE / 环境
 .idea/
