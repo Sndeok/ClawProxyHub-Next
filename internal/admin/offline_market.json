@@ -1,27 +1,27 @@
 [
   {
     "name": "cline",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "author": "cph",
     "label": {
       "en": "Cline",
       "zh": "Cline"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/cline-v0.1.2/cline-0.1.2.cphplugin",
-    "sha256": "0a95142be4b144fa65ebdf9a4989532b53630f330f4eb24f128c29f68294ba55"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/cline-v0.1.3/cline-0.1.3.cphplugin",
+    "sha256": "d64764ef43832d04ddb01ca98bc9fbf6b75f165b994bdb8c64a09edb104fe0e6"
   },
   {
     "name": "commandcode",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "author": "cph",
     "label": {
       "en": "Command Code",
       "zh": "Command Code"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/commandcode-v0.1.0/commandcode-0.1.0.cphplugin",
-    "sha256": "968b48610bc726c0b47612d39bf444aa67c8db0ef4a97f73e2379502f72cb541"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/commandcode-v0.1.1/commandcode-0.1.1.cphplugin",
+    "sha256": "2902d1ba10b1eedaf753d39af913680aee7d5c734e0c92684e36a4cb614f59b0"
   },
   {
     "name": "joycode",
@@ -37,62 +37,62 @@
   },
   {
     "name": "lobsterai",
-    "version": "0.1.13",
+    "version": "0.1.14",
     "author": "cph",
     "label": {
       "en": "LobsterAI",
       "zh": "LobsterAI"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/lobsterai-v0.1.13/lobsterai-0.1.13.cphplugin",
-    "sha256": "7790d6d2db3c97d2c06f7c607efe5619cc790a5e19731fc6a51b742e767c379a"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/lobsterai-v0.1.14/lobsterai-0.1.14.cphplugin",
+    "sha256": "47427994ce723d706fbdd0de6ce8cc62a95eab044224d3eab84927a397f2f3ce"
   },
   {
     "name": "opencode",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "author": "cph",
     "label": {
       "en": "OpenCode Zen",
       "zh": "OpenCode Zen"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/opencode-v0.1.1/opencode-0.1.1.cphplugin",
-    "sha256": "f9d0d9dcddfa306b671e8bdc6dd06f994ab20a929f550392d5e3c55338510411"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/opencode-v0.1.2/opencode-0.1.2.cphplugin",
+    "sha256": "0d92d2213e11aedf9817633369ef2e97f55a43c7cff4a943e446c845298f6b6c"
   },
   {
     "name": "qoder",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "author": "cph",
     "label": {
       "en": "Qoder",
       "zh": "Qoder"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoder-v0.1.1/qoder-0.1.1.cphplugin",
-    "sha256": "ac299b2350b72053bda390f6e53b250337d73b38253dbe0433775ca9dbe6a490"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoder-v0.1.2/qoder-0.1.2.cphplugin",
+    "sha256": "ef257ea90cd9d08a7f04203ac6e3b7e5ce95f830398800bec570a17cf54ad93b"
   },
   {
     "name": "qoderwork",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "author": "cph",
     "label": {
       "en": "QoderWork",
       "zh": "QoderWork"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoderwork-v0.1.2/qoderwork-0.1.2.cphplugin",
-    "sha256": "f7b31963a4ab0fc26f7bcad45f3e0aeae9a855298c38064ce16a38447ba4bd05"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoderwork-v0.1.3/qoderwork-0.1.3.cphplugin",
+    "sha256": "9115eba08d214f835cf98afc016d15dfe9ff72626b6442d6f489022955bdb22c"
   },
   {
     "name": "workbuddy",
-    "version": "0.1.14",
+    "version": "0.1.15",
     "author": "cph",
     "label": {
       "en": "WorkBuddy",
       "zh": "WorkBuddy"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/workbuddy-v0.1.14/workbuddy-0.1.14.cphplugin",
-    "sha256": "6f39c002aff5a2450448f309cde7b83bdd65fa2b73e56ba4fbf6c80a51774e29"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/workbuddy-v0.1.15/workbuddy-0.1.15.cphplugin",
+    "sha256": "db8e0114aeb899522ef66fe870d51c6e9cbc240a3e5f23d42cd98c6676f7af3a"
   }
 ]
