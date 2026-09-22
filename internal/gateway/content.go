@@ -64,6 +64,18 @@ func normalizeContent(raw json.RawMessage, source string) []byte {
 	return out
 }
 
+// withCacheControl 透传客户端设置的 prompt 缓存断点（Anthropic 系 cache_control）。
+//
+// 缓存按「前缀」计算，断点位置直接决定能不能复用上游缓存；核心静默丢弃它会让
+// Claude Code 这类客户端精心设置的断点失效，表现为缓存命中率长期偏低。
+// 上游协议本身没有该字段的插件应自行剥离（例如 Cline / QoderWork）。
+func withCacheControl(out, src map[string]any) map[string]any {
+	if cc, ok := src["cache_control"]; ok && cc != nil {
+		out["cache_control"] = cc
+	}
+	return out
+}
+
 func normalizeContentPart(value any, source string) (map[string]any, bool) {
 	m, ok := value.(map[string]any)
 	if !ok {
@@ -78,21 +90,21 @@ func normalizeContentPart(value any, source string) (map[string]any, bool) {
 		// 工具调用/结果由 EnvelopeMessage.ToolCalls / role=tool 表达，避免重复历史。
 		return nil, false
 	case "text", "input_text", "output_text":
-		return map[string]any{"type": "text", "text": stringValue(m["text"])}, true
+		return withCacheControl(map[string]any{"type": "text", "text": stringValue(m["text"])}, m), true
 	case "image_url":
-		return map[string]any{"type": "image_url", "image_url": imageURLValue(m)}, true
+		return withCacheControl(map[string]any{"type": "image_url", "image_url": imageURLValue(m)}, m), true
 	case "input_image":
-		return map[string]any{"type": "image_url", "image_url": map[string]any{
+		return withCacheControl(map[string]any{"type": "image_url", "image_url": map[string]any{
 			"url": firstString(m["image_url"], m["url"], m["data"]),
-		}}, true
+		}}, m), true
 	case "image": // Anthropic image block
 		if src, ok := m["source"].(map[string]any); ok {
 			if srcType := stringValue(src["type"]); srcType == "base64" {
 				media := stringValue(src["media_type"])
 				data := stringValue(src["data"])
-				return map[string]any{"type": "image_url", "image_url": map[string]any{
+				return withCacheControl(map[string]any{"type": "image_url", "image_url": map[string]any{
 					"url": "data:" + media + ";base64," + data,
-				}}, true
+				}}, m), true
 			}
 			if url := firstString(src["url"], src["data"]); url != "" {
 				return map[string]any{"type": "image_url", "image_url": map[string]any{"url": url}}, true

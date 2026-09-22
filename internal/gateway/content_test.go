@@ -71,3 +71,38 @@ func TestEnvelopeMessageContentJSONProtoRoundTrip(t *testing.T) {
 		t.Fatalf("content_json lost over protobuf: %q != %q", out.ContentJson, in.ContentJson)
 	}
 }
+
+// TestNormalizeContentKeepsCacheControl 客户端设置的 prompt 缓存断点必须透传到插件。
+//
+// 缓存按前缀计算：丢掉 cache_control 会让 Claude Code 等客户端设置的断点失效，
+// 上游只能按默认前缀缓存，表现为缓存命中率长期偏低（且不会有报错，极难排查）。
+func TestNormalizeContentKeepsCacheControl(t *testing.T) {
+	raw := json.RawMessage(`[
+		{"type":"text","text":"系统提示","cache_control":{"type":"ephemeral"}},
+		{"type":"image","source":{"type":"base64","media_type":"image/png","data":"AA=="},"cache_control":{"type":"ephemeral","ttl":"1h"}}
+	]`)
+	got := normalizeAnthropicContent(raw)
+	var parts []map[string]any
+	if err := json.Unmarshal(got, &parts); err != nil {
+		t.Fatal(err)
+	}
+	if len(parts) != 2 {
+		t.Fatalf("期望 2 个内容块，实际 %d: %s", len(parts), got)
+	}
+	cc0, ok := parts[0]["cache_control"].(map[string]any)
+	if !ok || cc0["type"] != "ephemeral" {
+		t.Errorf("文本块的 cache_control 丢失: %v", parts[0])
+	}
+	cc1, ok := parts[1]["cache_control"].(map[string]any)
+	if !ok || cc1["ttl"] != "1h" {
+		t.Errorf("图片块的 cache_control 丢失（含 ttl）: %v", parts[1])
+	}
+}
+
+// TestNormalizeContentCacheControlOptional 没设断点时不应凭空添加该字段。
+func TestNormalizeContentCacheControlOptional(t *testing.T) {
+	got := normalizeAnthropicContent(json.RawMessage(`[{"type":"text","text":"hi"}]`))
+	if strings.Contains(string(got), "cache_control") {
+		t.Errorf("无断点时不应出现 cache_control: %s", got)
+	}
+}
