@@ -18,6 +18,12 @@ export function fmtCompact(n: number | undefined | null): string {
   return `${(v / 1_000_000).toFixed(2)}M`
 }
 
+// fmtClock 只取时分秒：窄屏列宽紧张时配合 fmtTime 一起用
+export function fmtClock(t: string | null | undefined): string {
+  const full = fmtTime(t)
+  return full.includes(' ') ? full.split(' ')[1] : full
+}
+
 export function fmtTime(t: string | null | undefined): string {
   return t ? t.replace('T', ' ').slice(0, 19) : '-'
 }

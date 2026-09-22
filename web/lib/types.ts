@@ -94,6 +94,23 @@ export interface RouteInfo {
   GroupsJSON: string
   TimeoutSeconds: number
   FailoverEnabled: boolean
+  FailoverOn4xx: boolean
+  FailoverOn5xx: boolean
+  FailoverGroupID: number | null
+  FailoverModel: string
+}
+
+export interface ModelInfo {
+  id: string
+  [key: string]: unknown
+}
+
+export interface ProxyRow {
+  ID: number
+  Name: string
+  Scheme: string
+  Host: string
+  Port: number
 }
 
 export interface PluginInfo {

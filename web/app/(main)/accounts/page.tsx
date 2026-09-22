@@ -3,12 +3,13 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
+import { AccountEdit } from '@/components/account-edit'
 import { AccountWizard } from '@/components/account-wizard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableShell, Td, Th, Tr } from '@/components/ui/table'
 import { api } from '@/lib/api'
-import type { Account, GroupInfo, PluginInfo } from '@/lib/types'
+import type { Account, GroupInfo, PluginInfo, ProxyRow } from '@/lib/types'
 import { fmtCompact, fmtNum } from '@/lib/utils'
 
 export default function AccountsPage() {
@@ -17,20 +18,24 @@ export default function AccountsPage() {
   const [plugins, setPlugins] = useState<PluginInfo[]>([])
   const [refreshing, setRefreshing] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<Account | null>(null)
+  const [proxies, setProxies] = useState<ProxyRow[]>([])
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [a, g, p] = await Promise.all([
+      const [a, g, p, px] = await Promise.all([
         api.get<{ accounts: Account[] }>('/admin/accounts'),
         api.get<{ groups: GroupInfo[] }>('/admin/groups'),
         api.get<{ plugins: PluginInfo[] }>('/admin/plugins'),
+        api.get<{ proxies: ProxyRow[] }>('/admin/proxies').catch(() => ({ proxies: [] })),
       ])
       setAccounts(a.accounts ?? [])
       setGroups(g.groups ?? [])
       setPlugins(p.plugins ?? [])
+      setProxies(px.proxies ?? [])
     } finally {
       setLoading(false)
     }
@@ -129,12 +134,12 @@ export default function AccountsPage() {
           <thead>
             <tr>
               <Th>账号</Th>
-              <Th>插件</Th>
-              <Th>分组</Th>
+              <Th className="hidden md:table-cell">插件</Th>
+              <Th className="hidden md:table-cell">分组</Th>
               <Th className="text-right">积分</Th>
-              <Th className="text-right">今日 Token</Th>
-              <Th className="text-right">今日积分</Th>
-              <Th>积分到期</Th>
+              <Th className="hidden text-right md:table-cell">今日 Token</Th>
+              <Th className="hidden text-right md:table-cell">今日积分</Th>
+              <Th className="hidden md:table-cell">积分到期</Th>
               <Th>状态</Th>
               <Th className="text-right">操作</Th>
             </tr>
@@ -142,9 +147,21 @@ export default function AccountsPage() {
           <tbody>
             {accounts.map((a) => (
               <Tr key={a.id}>
-                <Td className="font-medium">{a.display_name || `#${a.id}`}</Td>
-                <Td className="text-muted-foreground">{pluginLabel(a.plugin_id)}</Td>
-                <Td>
+                <Td className="min-w-[120px] font-medium">
+                  {a.display_name || `#${a.id}`}
+                  <div className="mt-1 flex flex-wrap gap-1 md:hidden">
+                    <Badge>{pluginLabel(a.plugin_id)}</Badge>
+                    {(a.group_ids ?? []).map((gid) => (
+                      <Badge key={gid}>{groupName(gid)}</Badge>
+                    ))}
+                    {!!a.today_tokens && <Badge>今日 {fmtCompact(a.today_tokens)}</Badge>}
+                    {!!a.credits?.next_expiry && (
+                      <Badge tone={a.credits?.expiring ? 'warning' : 'neutral'}>{expiryLabel(a)}</Badge>
+                    )}
+                  </div>
+                </Td>
+                <Td className="hidden text-muted-foreground md:table-cell">{pluginLabel(a.plugin_id)}</Td>
+                <Td className="hidden md:table-cell">
                   <div className="flex flex-wrap gap-1">
                     {(a.group_ids ?? []).map((gid) => (
                       <Badge key={gid}>{groupName(gid)}</Badge>
@@ -156,8 +173,8 @@ export default function AccountsPage() {
                   <div>剩余 {fmtNum(a.credits?.remaining)}</div>
                   <div className="text-[11.5px] text-muted-foreground">总 {fmtNum(a.credits?.total)}</div>
                 </Td>
-                <Td className="tnum text-right">{a.today_tokens ? fmtCompact(a.today_tokens) : '-'}</Td>
-                <Td className="tnum text-right">
+                <Td className="tnum hidden text-right md:table-cell">{a.today_tokens ? fmtCompact(a.today_tokens) : '-'}</Td>
+                <Td className="tnum hidden text-right md:table-cell">
                   {a.today_credits ? (
                     <span>
                       {fmtNum(a.today_credits)}
@@ -167,14 +184,25 @@ export default function AccountsPage() {
                     '-'
                   )}
                 </Td>
-                <Td className={a.credits?.expiring ? 'text-[var(--warning)]' : 'text-muted-foreground'}>{expiryLabel(a)}</Td>
-                <Td>
+                <Td
+                  className={
+                    a.credits?.expiring
+                      ? 'hidden text-[var(--warning)] md:table-cell'
+                      : 'hidden text-muted-foreground md:table-cell'
+                  }
+                >
+                  {expiryLabel(a)}
+                </Td>
+                <Td className="whitespace-nowrap">
                   <Badge tone={a.status === 'active' ? 'success' : a.status === 'expired' ? 'danger' : a.status === 'paused' ? 'warning' : 'neutral'}>
                     {a.status === 'active' ? '正常' : a.status === 'expired' ? '已过期' : a.status === 'paused' ? '已停用' : a.status}
                   </Badge>
                 </Td>
                 <Td className="whitespace-nowrap text-right">
-                  <div className="flex items-center justify-end gap-3 text-[12.5px]">
+                  <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[12.5px]">
+                    <button className="underline-offset-2 hover:underline" onClick={() => setEditTarget(a)}>
+                      编辑
+                    </button>
                     <button className="underline-offset-2 hover:underline" onClick={() => void refreshOne(a)}>
                       刷新
                     </button>
@@ -208,6 +236,15 @@ export default function AccountsPage() {
           </tbody>
         </Table>
       </TableShell>
+
+      <AccountEdit
+        open={!!editTarget}
+        account={editTarget}
+        groups={groups}
+        proxies={proxies}
+        onClose={() => setEditTarget(null)}
+        onSaved={load}
+      />
 
       <AccountWizard
         open={addOpen}

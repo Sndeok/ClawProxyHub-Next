@@ -9,7 +9,7 @@ import { Input, Select } from '@/components/ui/input'
 import { Table, TableShell, Td, Th, Tr } from '@/components/ui/table'
 import { api } from '@/lib/api'
 import type { LogPage, RequestLog } from '@/lib/types'
-import { fmtCompact, fmtMs, fmtTime, hitRate } from '@/lib/utils'
+import { fmtClock, fmtCompact, fmtMs, fmtTime, hitRate } from '@/lib/utils'
 
 const PAGE_SIZE = 20
 
@@ -105,28 +105,45 @@ export default function LogsPage() {
             <tr>
               <Th>时间</Th>
               <Th>状态</Th>
-              <Th>密钥</Th>
-              <Th>账号</Th>
+              <Th className="hidden md:table-cell">密钥</Th>
+              <Th className="hidden md:table-cell">账号</Th>
               <Th>模型</Th>
-              <Th>协议</Th>
+              <Th className="hidden md:table-cell">协议</Th>
               <Th className="text-right">Token</Th>
-              <Th className="text-right">延迟</Th>
-              <Th>IP</Th>
+              <Th className="hidden text-right md:table-cell">延迟</Th>
+              <Th className="hidden md:table-cell">IP</Th>
             </tr>
           </thead>
           <tbody>
             {logs.map((r) => (
               <Tr key={r.ID} className="cursor-pointer" onClick={() => setDetail(r)}>
-                <Td className="tnum whitespace-nowrap">{fmtTime(r.CreatedAt)}</Td>
+                <Td className="tnum whitespace-nowrap">
+                  <span className="hidden md:inline">{fmtTime(r.CreatedAt)}</span>
+                  <span className="md:hidden">{fmtClock(r.CreatedAt)}</span>
+                </Td>
                 <Td>
                   <Badge tone={statusTone(r.Status)}>{r.Status}</Badge>
+                  <div className="tnum mt-0.5 text-[11px] text-muted-foreground md:hidden">
+                    {fmtMs(r.FirstTokenMs)} / {fmtMs(r.LatencyMs)}
+                  </div>
                 </Td>
-                <Td className="max-w-[120px] truncate">{r.key_name || '-'}</Td>
-                <Td className="max-w-[130px] truncate">{r.account_name || (r.AccountID ? `#${r.AccountID}` : '-')}</Td>
-                <Td className="max-w-[170px] truncate font-medium">{r.RequestedModel || r.Model || '-'}</Td>
-                <Td className="text-muted-foreground">{r.Protocol}</Td>
+                <Td className="hidden max-w-[120px] truncate md:table-cell">{r.key_name || '-'}</Td>
+                <Td className="hidden max-w-[130px] truncate md:table-cell">
+                  {r.account_name || (r.AccountID ? `#${r.AccountID}` : '-')}
+                </Td>
+                <Td className="max-w-[170px] truncate font-medium">
+                  {r.RequestedModel || r.Model || '-'}
+                  <div className="mt-0.5 flex flex-wrap gap-1 md:hidden">
+                    <span className="text-[11px] text-muted-foreground">{r.Protocol}</span>
+                    {!!r.key_name && <span className="text-[11px] text-muted-foreground">· {r.key_name}</span>}
+                    <span className="text-[11px] text-muted-foreground">
+                      · {r.account_name || (r.AccountID ? `#${r.AccountID}` : '无账号')}
+                    </span>
+                  </div>
+                </Td>
+                <Td className="hidden text-muted-foreground md:table-cell">{r.Protocol}</Td>
                 <Td className="tnum whitespace-nowrap text-right">
-                  <span className="inline-flex items-center gap-2">
+                  <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5">
                     <span className="inline-flex items-center gap-0.5 text-[var(--success)]">
                       <ArrowDown className="h-3 w-3" />
                       {fmtCompact(r.InputTokens)}
@@ -147,10 +164,10 @@ export default function LogsPage() {
                     )}
                   </span>
                 </Td>
-                <Td className="tnum whitespace-nowrap text-right">
+                <Td className="tnum hidden whitespace-nowrap text-right md:table-cell">
                   {fmtMs(r.FirstTokenMs)} / {fmtMs(r.LatencyMs)}
                 </Td>
-                <Td className="tnum text-muted-foreground">{r.ClientIP}</Td>
+                <Td className="tnum hidden text-muted-foreground md:table-cell">{r.ClientIP}</Td>
               </Tr>
             ))}
             {!loading && logs.length === 0 && (

@@ -168,15 +168,30 @@ export default function TasksPage() {
         <TableShell>
           <Table>
             <thead>
-              <tr><Th>插件</Th><Th>任务</Th><Th>触发</Th><Th>触发值</Th><Th>账号范围</Th><Th>状态</Th><Th>操作</Th></tr>
+              <tr>
+                <Th className="hidden md:table-cell">插件</Th>
+                <Th>任务</Th>
+                <Th className="hidden md:table-cell">触发</Th>
+                <Th className="hidden md:table-cell">触发值</Th>
+                <Th className="hidden md:table-cell">账号范围</Th>
+                <Th>状态</Th>
+                <Th>操作</Th>
+              </tr>
             </thead>
             <tbody>
               {rules.map((r) => (
                 <Tr key={r.id}>
-                  <Td>{r.plugin}</Td>
-                  <Td className="font-medium">{r.capability}</Td>
-                  <Td><Badge>{TRIGGER_LABEL[r.trigger_type] ?? r.trigger_type}</Badge></Td>
-                  <Td className="tnum">{r.trigger_value}</Td>
+                  <Td className="hidden md:table-cell">{r.plugin}</Td>
+                  <Td className="font-medium">
+                    {r.capability}
+                    <div className="mt-1 flex flex-wrap items-center gap-1 md:hidden">
+                      <Badge>{TRIGGER_LABEL[r.trigger_type] ?? r.trigger_type}</Badge>
+                      <span className="tnum text-[11px] text-muted-foreground">{r.trigger_value}</span>
+                      <span className="text-[11px] text-muted-foreground">{r.plugin}</span>
+                    </div>
+                  </Td>
+                  <Td className="hidden md:table-cell"><Badge>{TRIGGER_LABEL[r.trigger_type] ?? r.trigger_type}</Badge></Td>
+                  <Td className="tnum hidden md:table-cell">{r.trigger_value}</Td>
                   <Td>
                     <div className="flex flex-wrap gap-1">
                       {(r.accounts ?? []).slice(0, 3).map((a) => <Badge key={a}>{a}</Badge>)}
@@ -208,7 +223,13 @@ export default function TasksPage() {
         <TableShell>
           <Table>
             <thead>
-              <tr><Th>结果</Th><Th>任务</Th><Th>账号</Th><Th>摘要</Th><Th>开始时间</Th></tr>
+              <tr>
+                <Th>结果</Th>
+                <Th>任务</Th>
+                <Th className="hidden md:table-cell">账号</Th>
+                <Th className="hidden md:table-cell">摘要</Th>
+                <Th>开始时间</Th>
+              </tr>
             </thead>
             <tbody>
               {runs.map((r) => (
@@ -219,8 +240,8 @@ export default function TasksPage() {
                     </Badge>
                   </Td>
                   <Td>{r.capability}</Td>
-                  <Td className="text-muted-foreground">{r.account}</Td>
-                  <Td className="max-w-[420px] truncate">{r.error_message || r.summary || '-'}</Td>
+                  <Td className="hidden text-muted-foreground md:table-cell">{r.account}</Td>
+                  <Td className="hidden max-w-[420px] truncate md:table-cell">{r.error_message || r.summary || '-'}</Td>
                   <Td className="tnum text-muted-foreground">{r.started_at?.replace('T', ' ').slice(0, 19)}</Td>
                 </Tr>
               ))}

@@ -122,25 +122,34 @@ export default function KeysPage() {
         <Table>
           <thead>
             <tr>
-              <Th className="w-[60px]">ID</Th><Th>名称</Th><Th>密钥</Th><Th>启用</Th>
-              <Th>授权路由</Th><Th>最后调用</Th><Th>操作</Th>
+              <Th className="hidden w-[60px] md:table-cell">ID</Th><Th>名称</Th><Th className="hidden md:table-cell">密钥</Th><Th>启用</Th>
+              <Th className="hidden md:table-cell">授权路由</Th><Th className="hidden md:table-cell">最后调用</Th><Th>操作</Th>
             </tr>
           </thead>
           <tbody>
             {keys.map((k) => (
               <Tr key={k.id}>
-                <Td className="tnum text-muted-foreground">{k.id}</Td>
-                <Td className="font-medium">{k.name || '-'}</Td>
-                <Td className="tnum text-muted-foreground">{k.key_mask}</Td>
+                <Td className="tnum hidden text-muted-foreground md:table-cell">{k.id}</Td>
+                <Td className="font-medium">
+                  {k.name || '-'}
+                  <div className="mt-0.5 text-[11px] text-muted-foreground md:hidden">
+                    {k.key_mask}
+                    {' · '}
+                    {(k.route_ids ?? []).length === 0 ? '全部路由' : `${(k.route_ids ?? []).length} 条路由`}
+                    {' · '}
+                    {k.last_used_at || '从未调用'}
+                  </div>
+                </Td>
+                <Td className="tnum hidden text-muted-foreground md:table-cell">{k.key_mask}</Td>
                 <Td>
                   <button onClick={() => toggle(k)} aria-label="切换启用">
                     <Badge tone={k.enabled ? 'success' : 'neutral'}>{k.enabled ? '已启用' : '已停用'}</Badge>
                   </button>
                 </Td>
-                <Td className="text-muted-foreground">
+                <Td className="hidden text-muted-foreground md:table-cell">
                   {(k.route_ids ?? []).length === 0 ? '全部路由' : `${(k.route_ids ?? []).length} 条`}
                 </Td>
-                <Td className="tnum text-muted-foreground">{k.last_used_at || '从未'}</Td>
+                <Td className="tnum hidden text-muted-foreground md:table-cell">{k.last_used_at || '从未'}</Td>
                 <Td>
                   <div className="flex items-center gap-3 text-[12.5px]">
                     <button className="underline-offset-2 hover:underline" onClick={() => reveal(k)}>显示</button>

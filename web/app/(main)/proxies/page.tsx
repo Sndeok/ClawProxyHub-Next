@@ -107,8 +107,13 @@ export default function ProxiesPage() {
           <tbody>
             {rows.map((p) => (
               <Tr key={p.ID}>
-                <Td className="font-medium">{p.Name || '-'}</Td>
-                <Td className="tnum">{p.Scheme}://{p.Host}:{p.Port}</Td>
+                <Td className="font-medium">
+                  {p.Name || '-'}
+                  <div className="tnum mt-0.5 text-[11px] text-muted-foreground md:hidden">
+                    {p.Scheme}://{p.Host}:{p.Port}
+                  </div>
+                </Td>
+                <Td className="tnum hidden md:table-cell">{p.Scheme}://{p.Host}:{p.Port}</Td>
                 <Td className="text-muted-foreground">{p.Username || '-'}</Td>
                 <Td>
                   <div className="flex items-center gap-3 text-[12.5px]">

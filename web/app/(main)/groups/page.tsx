@@ -79,14 +79,23 @@ export default function GroupsPage() {
       <TableShell>
         <Table>
           <thead>
-            <tr><Th className="w-[60px]">ID</Th><Th>名称</Th><Th>插件</Th><Th className="text-right">账号数</Th><Th>操作</Th></tr>
+            <tr>
+              <Th className="hidden w-[60px] md:table-cell">ID</Th>
+              <Th>名称</Th>
+              <Th className="hidden md:table-cell">插件</Th>
+              <Th className="text-right">账号数</Th>
+              <Th>操作</Th>
+            </tr>
           </thead>
           <tbody>
             {groups.map((g) => (
               <Tr key={g.id}>
-                <Td className="tnum text-muted-foreground">{g.id}</Td>
-                <Td className="font-medium">{g.name}</Td>
-                <Td className="text-muted-foreground">{g.plugin_label || g.plugin}</Td>
+                <Td className="tnum hidden text-muted-foreground md:table-cell">{g.id}</Td>
+                <Td className="font-medium">
+                  {g.name}
+                  <div className="mt-0.5 text-[11px] text-muted-foreground md:hidden">{g.plugin_label || g.plugin}</div>
+                </Td>
+                <Td className="hidden text-muted-foreground md:table-cell">{g.plugin_label || g.plugin}</Td>
                 <Td className="tnum text-right">{g.accounts}</Td>
                 <Td>
                   <div className="flex items-center gap-3 text-[12.5px]">

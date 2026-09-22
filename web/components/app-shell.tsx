@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
   BarChart3, Boxes, ChevronLeft, FileText, GitBranch, KeyRound, ListTree,
-  Moon, Network, Plug, Power, Settings, Sun, Users,
+  Menu, Moon, Network, Plug, Power, Settings, Sun, Users,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -66,6 +66,7 @@ const rawPathname = usePathname()
 const pathname = rawPathname === '/' ? '/' : rawPathname.replace(/\/+$/, '')
   const router = useRouter()
   const [collapsed, setCollapsed] = useState(false)
+  const [mobileOpen, setMobileOpen] = useState(false)
   const [dark, setDark] = useState(false)
   const [ready, setReady] = useState(false)
 
@@ -79,6 +80,11 @@ const pathname = rawPathname === '/' ? '/' : rawPathname.replace(/\/+$/, '')
     setCollapsed(window.localStorage.getItem('cph-sidebar') === 'collapsed')
     setDark(document.documentElement.classList.contains('dark'))
   }, [router])
+
+  // 窄屏：抽屉形态，导航后自动收起
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
 
   function toggleCollapsed() {
     const next = !collapsed
@@ -105,17 +111,26 @@ const pathname = rawPathname === '/' ? '/' : rawPathname.replace(/\/+$/, '')
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden
+        />
+      )}
       <aside
         className={cn(
-          'flex shrink-0 flex-col bg-[var(--sidebar)] transition-[width] duration-200',
-          collapsed ? 'w-[64px]' : 'w-[232px]',
+          'fixed inset-y-0 left-0 z-40 flex w-[232px] shrink-0 flex-col bg-[var(--sidebar)] transition-transform duration-200',
+          'md:static md:z-auto md:translate-x-0 md:transition-[width]',
+          mobileOpen ? 'translate-x-0' : '-translate-x-full',
+          collapsed ? 'md:w-[64px]' : 'md:w-[232px]',
         )}
       >
         <div className="flex h-[60px] shrink-0 items-center gap-2 px-4">
           <span className="grid h-8 w-8 place-items-center rounded-md bg-primary text-[11px] font-bold text-primary-foreground">
             C
           </span>
-          {!collapsed && (
+          {(!collapsed || mobileOpen) && (
             <div className="min-w-0">
               <div className="truncate text-[14px] font-semibold">
                 ClawProxyHub<span className="ml-1 rounded border px-1 text-[10px] font-medium text-muted-foreground">NEXT</span>
@@ -128,7 +143,7 @@ const pathname = rawPathname === '/' ? '/' : rawPathname.replace(/\/+$/, '')
         <nav className="flex-1 overflow-y-auto px-2 pb-4">
           {NAV.map((group) => (
             <div key={group.group} className="mb-1">
-              {!collapsed && (
+              {(!collapsed || mobileOpen) && (
                 <div className="px-2 pb-1 pt-3 text-[11px] font-medium text-muted-foreground">{group.group}</div>
               )}
               {group.items.map((item) => {
@@ -141,7 +156,7 @@ const pathname = rawPathname === '/' ? '/' : rawPathname.replace(/\/+$/, '')
                 return (
                   <Link key={item.href} href={item.href} className={cls}>
                     <Icon className="h-4 w-4 shrink-0" />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {(!collapsed || mobileOpen) && <span className="truncate">{item.label}</span>}
                   </Link>
                 )
               })}
@@ -151,7 +166,7 @@ const pathname = rawPathname === '/' ? '/' : rawPathname.replace(/\/+$/, '')
 
         <button
           onClick={toggleCollapsed}
-          className="flex h-10 shrink-0 items-center justify-center gap-1 border-t text-[12px] text-muted-foreground hover:text-foreground"
+          className="hidden h-10 shrink-0 items-center justify-center gap-1 border-t text-[12px] text-muted-foreground hover:text-foreground md:flex"
         >
           <ChevronLeft className={cn('h-4 w-4 transition-transform', collapsed && 'rotate-180')} />
           {!collapsed && '收起'}
@@ -159,8 +174,11 @@ const pathname = rawPathname === '/' ? '/' : rawPathname.replace(/\/+$/, '')
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[60px] shrink-0 items-center justify-between gap-4 border-b bg-background/85 px-5 backdrop-blur">
-          <div className="min-w-0">
+        <header className="flex h-[60px] shrink-0 items-center justify-between gap-2 border-b bg-background/85 px-3 backdrop-blur md:gap-4 md:px-5">
+          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="打开菜单">
+            <Menu className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0 flex-1">
             <div className="truncate text-[16px] font-semibold">{meta.title}</div>
             <div className="truncate text-[12px] text-muted-foreground">{meta.desc}</div>
           </div>
@@ -173,7 +191,7 @@ const pathname = rawPathname === '/' ? '/' : rawPathname.replace(/\/+$/, '')
             </Button>
           </div>
         </header>
-        <main className="min-h-0 flex-1 overflow-auto p-5">{children}</main>
+        <main className="min-h-0 flex-1 overflow-auto p-3 md:p-5">{children}</main>
       </div>
     </div>
   )

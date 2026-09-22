@@ -8,7 +8,7 @@ import { Badge, statusTone } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import type { QuotaPlugin, RequestLog, Stats, TrendPoint } from '@/lib/types'
-import { fmtCompact, fmtNum, fmtTime } from '@/lib/utils'
+import { fmtClock, fmtCompact, fmtNum, fmtTime } from '@/lib/utils'
 import Link from 'next/link'
 
 const CARDS: { key: keyof Stats; label: string }[] = [
@@ -62,7 +62,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {CARDS.map((c, i) => (
           <Card key={c.key}>
             <CardContent className="pt-5">
@@ -112,7 +112,7 @@ export default function DashboardPage() {
                   <span className="text-[13px] font-medium">{q.plugin}</span>
                   <span className="text-[11.5px] text-muted-foreground">{q.accounts} 个账号</span>
                 </div>
-                <div className="mt-2 grid grid-cols-3 gap-2 text-[12px]">
+                <div className="mt-2 grid grid-cols-3 gap-2 text-[12px] max-sm:grid-cols-1 max-sm:gap-1">
                   <div>
                     <div className="text-muted-foreground">已用</div>
                     <div className="tnum font-medium">{fmtNum(q.quota.used_credits)}</div>
@@ -146,24 +146,32 @@ export default function DashboardPage() {
                 <tr>
                   <Th>时间</Th>
                   <Th>模型</Th>
-                  <Th>协议</Th>
+                  <Th className="hidden md:table-cell">协议</Th>
                   <Th>状态</Th>
-                  <Th className="text-right">输入</Th>
-                  <Th className="text-right">输出</Th>
+                  <Th className="hidden text-right md:table-cell">输入</Th>
+                  <Th className="hidden text-right md:table-cell">输出</Th>
                   <Th className="text-right">耗时</Th>
                 </tr>
               </thead>
               <tbody>
                 {recent.map((r) => (
                   <Tr key={r.ID}>
-                    <Td className="tnum whitespace-nowrap">{fmtTime(r.CreatedAt)}</Td>
-                    <Td className="max-w-[220px] truncate">{r.RequestedModel || r.Model}</Td>
-                    <Td className="text-muted-foreground">{r.Protocol}</Td>
+                    <Td className="tnum whitespace-nowrap">
+                      <span className="hidden md:inline">{fmtTime(r.CreatedAt)}</span>
+                      <span className="md:hidden">{fmtClock(r.CreatedAt)}</span>
+                    </Td>
+                    <Td className="max-w-[132px] truncate md:max-w-[220px]">
+                      {r.RequestedModel || r.Model}
+                      <div className="mt-0.5 text-[11px] text-muted-foreground md:hidden">
+                        {r.Protocol} · ↓{fmtCompact(r.InputTokens)} ↑{fmtCompact(r.OutputTokens)}
+                      </div>
+                    </Td>
+                    <Td className="hidden text-muted-foreground md:table-cell">{r.Protocol}</Td>
                     <Td>
                       <Badge tone={statusTone(r.Status)}>{r.Status}</Badge>
                     </Td>
-                    <Td className="tnum text-right">{r.InputTokens}</Td>
-                    <Td className="tnum text-right">{r.OutputTokens}</Td>
+                    <Td className="tnum hidden text-right md:table-cell">{r.InputTokens}</Td>
+                    <Td className="tnum hidden text-right md:table-cell">{r.OutputTokens}</Td>
                     <Td className="tnum text-right">{r.LatencyMs}ms</Td>
                   </Tr>
                 ))}
