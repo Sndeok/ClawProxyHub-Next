@@ -37,15 +37,15 @@
   },
   {
     "name": "opencode",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "author": "cph",
     "label": {
       "en": "OpenCode Zen",
       "zh": "OpenCode Zen"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/opencode-v0.1.0/opencode-0.1.0.cphplugin",
-    "sha256": "12b2d771b156df382539cd1db2d778a603ec7d92d8554dbab4493140a307ea85"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/opencode-v0.1.1/opencode-0.1.1.cphplugin",
+    "sha256": "f9d0d9dcddfa306b671e8bdc6dd06f994ab20a929f550392d5e3c55338510411"
   },
   {
     "name": "qoder",
