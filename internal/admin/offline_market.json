@@ -25,15 +25,15 @@
   },
   {
     "name": "joycode",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "author": "cph",
     "label": {
       "en": "JoyCode",
       "zh": "JoyCode"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/joycode-v0.1.2/joycode-0.1.2.cphplugin",
-    "sha256": "d0743d3cf908e865e8cc73c573c3c54fe5c98e6054a95706ed6b6ffc2af18558"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/joycode-v0.1.3/joycode-0.1.3.cphplugin",
+    "sha256": "b880c32a15b09ce9c5c00b48c8d0762aae028ac7b662ea576bf2c9a4ca8683e3"
   },
   {
     "name": "lobsterai",
@@ -85,14 +85,14 @@
   },
   {
     "name": "workbuddy",
-    "version": "0.1.12",
+    "version": "0.1.14",
     "author": "cph",
     "label": {
       "en": "WorkBuddy",
       "zh": "WorkBuddy"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/workbuddy-v0.1.12/workbuddy-0.1.12.cphplugin",
-    "sha256": "3b1647fd2a1991bdebf888d353416b965df14060e78328567ad33bd39a67d05c"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/workbuddy-v0.1.14/workbuddy-0.1.14.cphplugin",
+    "sha256": "6f39c002aff5a2450448f309cde7b83bdd65fa2b73e56ba4fbf6c80a51774e29"
   }
 ]
