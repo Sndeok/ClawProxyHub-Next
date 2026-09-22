@@ -102,7 +102,24 @@ export interface RouteInfo {
 
 export interface ModelInfo {
   id: string
+  label?: Record<string, string>
+  context_window?: number
+  max_output_tokens?: number
+  series?: string
+  reasoning_efforts?: string[]
+  default_reasoning_effort?: string
+  credits_multiplier?: number
+  tags?: string[]
+  description?: string
+  supports_tools?: boolean
+  supports_stream?: boolean
   [key: string]: unknown
+}
+
+// 模型中心一行：账号目录并集 + 选型元数据
+export interface ModelRow extends ModelInfo {
+  accounts?: number
+  plugin?: string
 }
 
 export interface ProxyRow {

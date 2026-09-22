@@ -80,10 +80,16 @@ func (s *stubPlugin) Handshake(ctx context.Context, req *pb.HandshakeRequest) (*
 func (s *stubPlugin) ListModels(ctx context.Context, cred *pb.CredentialBlob) (*pb.ModelList, error) {
 	return &pb.ModelList{
 		Models: []*pb.ModelInfo{
-			{Id: "stub-mini", Label: map[string]string{"en": "Stub Mini"},
-				ContextWindow: 8192, SupportsTools: true, SupportsStream: true},
-			{Id: "stub-pro", Label: map[string]string{"en": "Stub Pro"},
-				ContextWindow: 128000, SupportsTools: true, SupportsStream: true},
+			{Id: "stub-mini", Label: map[string]string{"zh": "迷你（演示）", "en": "Stub Mini"},
+				ContextWindow: 32768, MaxOutputTokens: 8192, SupportsTools: true, SupportsStream: true,
+				Series: "演示系列", CreditsMultiplier: 0.1, ReasoningEfforts: []string{"low", "high"},
+				DefaultReasoningEffort: "high", Tags: []string{"支持推理", "工具调用"},
+				Description: "演示用：小上下文档位模型"},
+			{Id: "stub-pro", Label: map[string]string{"zh": "专业（演示）", "en": "Stub Pro"},
+				ContextWindow: 262144, MaxOutputTokens: 65536, SupportsTools: true, SupportsStream: true,
+				Series: "演示系列", CreditsMultiplier: 2.5, ReasoningEfforts: []string{"low", "medium", "high", "max"},
+				DefaultReasoningEffort: "high", Tags: []string{"多模态", "支持推理", "工具调用"},
+				Description: "演示用：大上下文多档位模型"},
 		},
 	}, nil
 }

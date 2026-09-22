@@ -167,6 +167,14 @@ message ModelInfo {
   int32 context_window = 3;
   bool supports_tools = 4;
   bool supports_stream = 5;
+  // ---- 选型元数据（模型中心展示；上游目录没给就是 0 / 空）----
+  string series = 6;                     // 系列 / 分类：DeepSeek / Kimi / 智谱 GLM / 腾讯混元 …
+  int32 max_output_tokens = 7;           // 单次最大输出 token
+  repeated string reasoning_efforts = 8; // 推理档位：low / medium / high / xhigh / max
+  string default_reasoning_effort = 9;   // 默认推理档位
+  double credits_multiplier = 10;        // 积分倍率（0.05 = x0.05）
+  repeated string tags = 11;             // 多模态 / 支持推理 / 仅推理 / 工具调用 …
+  string description = 12;               // 说明文案
 }
 
 message ModelList {

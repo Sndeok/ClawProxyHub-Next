@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
-  BarChart3, Boxes, ChevronLeft, FileText, GitBranch, KeyRound, ListTree,
+  BarChart3, Boxes, ChevronLeft, Cpu, FileText, GitBranch, KeyRound, ListTree,
   Menu, Moon, Network, Plug, Power, Settings, Sun, Users,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -24,6 +24,7 @@ const NAV: { group: string; items: NavItem[] }[] = [
     group: '资源',
     items: [
       { href: '/plugins', label: '插件', icon: Plug },
+      { href: '/models', label: '模型', icon: Cpu },
       { href: '/accounts', label: '账号', icon: Users, },
       { href: '/groups', label: '分组', icon: Boxes },
       { href: '/proxies', label: '代理', icon: Network },
@@ -52,6 +53,7 @@ const TITLES: Record<string, { title: string; desc: string }> = {
   '/routes': { title: '路由', desc: '对外模型别名 → 分组映射与降级' },
   '/logs': { title: '日志', desc: '调用日志与协议 / 用量明细' },
   '/plugins': { title: '插件', desc: '客户端插件安装 / 授权 / 任务能力' },
+  '/models': { title: '模型中心', desc: '模型目录 / 系列 / 倍率 / 上下文 / 推理档位' },
   '/groups': { title: '分组', desc: '同插件账号池与出站代理' },
   '/proxies': { title: '代理', desc: '出站代理配置与绑定' },
   '/keys': { title: '密钥', desc: '客户端调用凭据与路由授权' },

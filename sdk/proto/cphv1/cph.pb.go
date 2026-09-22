@@ -1184,8 +1184,16 @@ type ModelInfo struct {
 	ContextWindow  int32                  `protobuf:"varint,3,opt,name=context_window,json=contextWindow,proto3" json:"context_window,omitempty"`
 	SupportsTools  bool                   `protobuf:"varint,4,opt,name=supports_tools,json=supportsTools,proto3" json:"supports_tools,omitempty"`
 	SupportsStream bool                   `protobuf:"varint,5,opt,name=supports_stream,json=supportsStream,proto3" json:"supports_stream,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// ---- 选型元数据（模型中心展示；上游目录没给就是 0 / 空）----
+	Series                 string   `protobuf:"bytes,6,opt,name=series,proto3" json:"series,omitempty"`                                                                 // 系列 / 分类：DeepSeek / Kimi / 智谱 GLM / 腾讯混元 …
+	MaxOutputTokens        int32    `protobuf:"varint,7,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`                     // 单次最大输出 token
+	ReasoningEfforts       []string `protobuf:"bytes,8,rep,name=reasoning_efforts,json=reasoningEfforts,proto3" json:"reasoning_efforts,omitempty"`                     // 推理档位：low / medium / high / xhigh / max
+	DefaultReasoningEffort string   `protobuf:"bytes,9,opt,name=default_reasoning_effort,json=defaultReasoningEffort,proto3" json:"default_reasoning_effort,omitempty"` // 默认推理档位
+	CreditsMultiplier      float64  `protobuf:"fixed64,10,opt,name=credits_multiplier,json=creditsMultiplier,proto3" json:"credits_multiplier,omitempty"`               // 积分倍率（0.05 = x0.05）
+	Tags                   []string `protobuf:"bytes,11,rep,name=tags,proto3" json:"tags,omitempty"`                                                                    // 多模态 / 支持推理 / 仅推理 / 工具调用 …
+	Description            string   `protobuf:"bytes,12,opt,name=description,proto3" json:"description,omitempty"`                                                      // 说明文案
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *ModelInfo) Reset() {
@@ -1251,6 +1259,55 @@ func (x *ModelInfo) GetSupportsStream() bool {
 		return x.SupportsStream
 	}
 	return false
+}
+
+func (x *ModelInfo) GetSeries() string {
+	if x != nil {
+		return x.Series
+	}
+	return ""
+}
+
+func (x *ModelInfo) GetMaxOutputTokens() int32 {
+	if x != nil {
+		return x.MaxOutputTokens
+	}
+	return 0
+}
+
+func (x *ModelInfo) GetReasoningEfforts() []string {
+	if x != nil {
+		return x.ReasoningEfforts
+	}
+	return nil
+}
+
+func (x *ModelInfo) GetDefaultReasoningEffort() string {
+	if x != nil {
+		return x.DefaultReasoningEffort
+	}
+	return ""
+}
+
+func (x *ModelInfo) GetCreditsMultiplier() float64 {
+	if x != nil {
+		return x.CreditsMultiplier
+	}
+	return 0
+}
+
+func (x *ModelInfo) GetTags() []string {
+	if x != nil {
+		return x.Tags
+	}
+	return nil
+}
+
+func (x *ModelInfo) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
 }
 
 type ModelList struct {
@@ -2949,13 +3006,21 @@ const file_sdk_proto_cph_proto_rawDesc = "" +
 	"\rRefreshResult\x12#\n" +
 	"\x05error\x18\x01 \x01(\v2\r.cph.v1.ErrorR\x05error\x12\x12\n" +
 	"\x04blob\x18\x02 \x01(\fR\x04blob\x120\n" +
-	"\aprofile\x18\x03 \x01(\v2\x16.cph.v1.AccountProfileR\aprofile\"\x80\x02\n" +
+	"\aprofile\x18\x03 \x01(\v2\x16.cph.v1.AccountProfileR\aprofile\"\x90\x04\n" +
 	"\tModelInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x122\n" +
 	"\x05label\x18\x02 \x03(\v2\x1c.cph.v1.ModelInfo.LabelEntryR\x05label\x12%\n" +
 	"\x0econtext_window\x18\x03 \x01(\x05R\rcontextWindow\x12%\n" +
 	"\x0esupports_tools\x18\x04 \x01(\bR\rsupportsTools\x12'\n" +
-	"\x0fsupports_stream\x18\x05 \x01(\bR\x0esupportsStream\x1a8\n" +
+	"\x0fsupports_stream\x18\x05 \x01(\bR\x0esupportsStream\x12\x16\n" +
+	"\x06series\x18\x06 \x01(\tR\x06series\x12*\n" +
+	"\x11max_output_tokens\x18\a \x01(\x05R\x0fmaxOutputTokens\x12+\n" +
+	"\x11reasoning_efforts\x18\b \x03(\tR\x10reasoningEfforts\x128\n" +
+	"\x18default_reasoning_effort\x18\t \x01(\tR\x16defaultReasoningEffort\x12-\n" +
+	"\x12credits_multiplier\x18\n" +
+	" \x01(\x01R\x11creditsMultiplier\x12\x12\n" +
+	"\x04tags\x18\v \x03(\tR\x04tags\x12 \n" +
+	"\vdescription\x18\f \x01(\tR\vdescription\x1a8\n" +
 	"\n" +
 	"LabelEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +

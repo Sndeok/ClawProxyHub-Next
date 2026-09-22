@@ -100,6 +100,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /admin/proxies/{id}", s.auth(s.deleteProxy))
 	mux.HandleFunc("POST /admin/proxies/{id}/test", s.auth(s.testProxy))
 	mux.HandleFunc("GET /admin/models", s.auth(s.listModels))
+	mux.HandleFunc("POST /admin/models/sync-accounts", s.auth(s.syncAccountModels))
 	mux.HandleFunc("GET /admin/routes", s.auth(s.listRoutes))
 	mux.HandleFunc("POST /admin/routes", s.auth(s.createRoute))
 	mux.HandleFunc("PUT /admin/routes/{id}", s.auth(s.updateRoute))
