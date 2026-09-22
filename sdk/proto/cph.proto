@@ -251,6 +251,10 @@ message Usage {
   // 本次请求消耗的积分（上游 usage 里透出了才上报，0 = 未知）。
   // 旧插件不填该字段，proto3 默认 0，天然向后兼容。
   double credit_used = 4;
+  // 缓存写入 token（Anthropic cache_creation_input_tokens / OpenAI 系 cache_write_tokens）。
+  // 与 cached_tokens（命中读取）分列：写入单价更高，混在一起会算错账。
+  // 旧插件不填该字段，proto3 默认 0，天然向后兼容。
+  int64 cache_creation_tokens = 5;
 }
 
 message MessageFinish {

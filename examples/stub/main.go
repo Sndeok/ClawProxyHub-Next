@@ -96,6 +96,14 @@ func (s *stubPlugin) Chat(req *pb.ChatRequest, stream pb.ClawPlugin_ChatServer) 
 			TaskFailed: &pb.TaskFailed{Error: &pb.Error{Code: 401, Message: "credential expired"}},
 		}})
 	}
+	// 凭据含 BOOM：先吐一段正文再中断，用于验证「流中途失败」按协议下发错误帧
+	if cred := req.GetCredential(); cred != nil && strings.Contains(string(cred.Blob), "BOOM") {
+		_ = stream.Send(&pb.StreamEvent{Event: &pb.StreamEvent_MessageStart{MessageStart: &pb.MessageStart{Model: req.Model}}})
+		_ = stream.Send(&pb.StreamEvent{Event: &pb.StreamEvent_ContentDelta{ContentDelta: &pb.ContentDelta{Text: "partial"}}})
+		return stream.Send(&pb.StreamEvent{Event: &pb.StreamEvent_TaskFailed{
+			TaskFailed: &pb.TaskFailed{Error: &pb.Error{Code: 500, Message: "upstream boom"}},
+		}})
+	}
 	if s.host != nil {
 		s.host.Log("info", fmt.Sprintf("chat model=%s stream=%v msgs=%d", req.Model, req.Stream, len(req.Messages)))
 	}
@@ -132,7 +140,11 @@ func (s *stubPlugin) Chat(req *pb.ChatRequest, stream pb.ClawPlugin_ChatServer) 
 	return send(&pb.StreamEvent{Event: &pb.StreamEvent_MessageFinish{
 		MessageFinish: &pb.MessageFinish{
 			FinishReason: finishReason(len(req.Tools) > 0),
-			Usage:        &pb.Usage{InputTokens: 12, OutputTokens: int64(len(reply))},
+			// 固定用量含缓存命中与写入：用于验证核心 → 日志 → 前端的用量口径
+			Usage: &pb.Usage{
+				InputTokens: 120, OutputTokens: int64(len(reply)),
+				CachedTokens: 64, CacheCreationTokens: 16,
+			},
 		},
 	}})
 }

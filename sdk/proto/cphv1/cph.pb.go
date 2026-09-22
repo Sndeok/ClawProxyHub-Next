@@ -1967,9 +1967,13 @@ type Usage struct {
 	CachedTokens int64                  `protobuf:"varint,3,opt,name=cached_tokens,json=cachedTokens,proto3" json:"cached_tokens,omitempty"` // 命中缓存的输入 token（上游有透出时上报）
 	// 本次请求消耗的积分（上游 usage 里透出了才上报，0 = 未知）。
 	// 旧插件不填该字段，proto3 默认 0，天然向后兼容。
-	CreditUsed    float64 `protobuf:"fixed64,4,opt,name=credit_used,json=creditUsed,proto3" json:"credit_used,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	CreditUsed float64 `protobuf:"fixed64,4,opt,name=credit_used,json=creditUsed,proto3" json:"credit_used,omitempty"`
+	// 缓存写入 token（Anthropic cache_creation_input_tokens / OpenAI 系 cache_write_tokens）。
+	// 与 cached_tokens（命中读取）分列：写入单价更高，混在一起会算错账。
+	// 旧插件不填该字段，proto3 默认 0，天然向后兼容。
+	CacheCreationTokens int64 `protobuf:"varint,5,opt,name=cache_creation_tokens,json=cacheCreationTokens,proto3" json:"cache_creation_tokens,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *Usage) Reset() {
@@ -2026,6 +2030,13 @@ func (x *Usage) GetCachedTokens() int64 {
 func (x *Usage) GetCreditUsed() float64 {
 	if x != nil {
 		return x.CreditUsed
+	}
+	return 0
+}
+
+func (x *Usage) GetCacheCreationTokens() int64 {
+	if x != nil {
+		return x.CacheCreationTokens
 	}
 	return 0
 }
@@ -2998,13 +3009,14 @@ const file_sdk_proto_cph_proto_rawDesc = "" +
 	"\rToolCallDelta\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12'\n" +
-	"\x0farguments_delta\x18\x03 \x01(\tR\x0eargumentsDelta\"\x95\x01\n" +
+	"\x0farguments_delta\x18\x03 \x01(\tR\x0eargumentsDelta\"\xc9\x01\n" +
 	"\x05Usage\x12!\n" +
 	"\finput_tokens\x18\x01 \x01(\x03R\vinputTokens\x12#\n" +
 	"\routput_tokens\x18\x02 \x01(\x03R\foutputTokens\x12#\n" +
 	"\rcached_tokens\x18\x03 \x01(\x03R\fcachedTokens\x12\x1f\n" +
 	"\vcredit_used\x18\x04 \x01(\x01R\n" +
-	"creditUsed\"Y\n" +
+	"creditUsed\x122\n" +
+	"\x15cache_creation_tokens\x18\x05 \x01(\x03R\x13cacheCreationTokens\"Y\n" +
 	"\rMessageFinish\x12#\n" +
 	"\rfinish_reason\x18\x01 \x01(\tR\ffinishReason\x12#\n" +
 	"\x05usage\x18\x02 \x01(\v2\r.cph.v1.UsageR\x05usage\"1\n" +

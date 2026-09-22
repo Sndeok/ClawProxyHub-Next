@@ -280,12 +280,7 @@ func (s *responsesSSEState) convertEvent(ev *pb.StreamEvent) string {
 			output = append(output, item)
 		}
 		// usage 为必填字段，缺失时补零值（Codex 严格反序列化，否则断流）。
-		var inTok, outTok, cachedTok int64
-		if e.MessageFinish.Usage != nil {
-			inTok, outTok = e.MessageFinish.Usage.InputTokens, e.MessageFinish.Usage.OutputTokens
-			cachedTok = e.MessageFinish.Usage.CachedTokens
-		}
-		usage := responsesUsagePayload(inTok, outTok, cachedTok)
+		usage := responsesUsagePayload(e.MessageFinish.Usage)
 		out += respEvent("response.completed", map[string]interface{}{
 			"response": map[string]interface{}{
 				"id": s.respID, "object": "response", "model": s.model,
@@ -308,12 +303,20 @@ func respEvent(eventType string, payload map[string]interface{}) string {
 // responsesAggregate Responses 非流式聚合。
 // responsesUsagePayload 生成 Responses 口径的 usage：input_tokens 含缓存命中，
 // input_tokens_details.cached_tokens 为其中的子集。
-func responsesUsagePayload(in, out, cached int64) map[string]interface{} {
+func responsesUsagePayload(u *pb.Usage) map[string]interface{} {
+	in, out, cached, write := int64(0), int64(0), int64(0), int64(0)
+	if u != nil {
+		in, out, cached, write = u.InputTokens, u.OutputTokens, u.CachedTokens, u.CacheCreationTokens
+	}
 	usage := map[string]interface{}{
 		"input_tokens": in, "output_tokens": out, "total_tokens": in + out,
 	}
-	if cached > 0 {
-		usage["input_tokens_details"] = map[string]interface{}{"cached_tokens": cached}
+	if cached > 0 || write > 0 {
+		details := map[string]interface{}{"cached_tokens": cached}
+		if write > 0 {
+			details["cache_write_tokens"] = write
+		}
+		usage["input_tokens_details"] = details
 	}
 	return usage
 }
@@ -344,7 +347,7 @@ func (a *responsesAggregate) result() map[string]interface{} {
 	return map[string]interface{}{
 		"id": "resp_" + randHex(16), "object": "response", "model": a.model,
 		"status": "completed", "output": output,
-		"usage": responsesUsagePayload(a.usage.InputTokens, a.usage.OutputTokens, a.usage.CachedTokens),
+		"usage": responsesUsagePayload(&a.usage),
 	}
 }
 

@@ -362,6 +362,8 @@ func (u anthropicUsage) envelope() *pb.Usage {
 		InputTokens:  u.input + u.cacheRead + u.cacheCreate,
 		OutputTokens: u.output,
 		CachedTokens: u.cacheRead,
+		// 写入与命中分列上报：Anthropic 单独计费 cache_creation，混进命中会算错账
+		CacheCreationTokens: u.cacheCreate,
 	}
 }
 

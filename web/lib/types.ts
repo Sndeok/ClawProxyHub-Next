@@ -39,6 +39,7 @@ export interface RequestLog {
   InputTokens: number
   OutputTokens: number
   CachedTokens: number
+  CacheCreationTokens: number
   FirstTokenMs: number
   LatencyMs: number
   ClientIP: string

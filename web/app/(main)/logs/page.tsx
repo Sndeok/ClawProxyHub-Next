@@ -47,6 +47,7 @@ export default function LogsPage() {
   const pageTokens = logs.reduce((n, r) => n + (r.InputTokens || 0) + (r.OutputTokens || 0), 0)
   const pageInput = logs.reduce((n, r) => n + (r.InputTokens || 0), 0)
   const pageCached = logs.reduce((n, r) => n + (r.CachedTokens || 0), 0)
+  const pageCacheWrite = logs.reduce((n, r) => n + (r.CacheCreationTokens || 0), 0)
 
   return (
     <div className="flex flex-col gap-4">
@@ -93,6 +94,7 @@ export default function LogsPage() {
             <span className="tnum">共 {total} 条</span>
             <span className="tnum">Σ {fmtCompact(pageTokens)}</span>
             <span className="tnum">缓存命中率 {hitRate(pageCached, pageInput)}</span>
+            {pageCacheWrite > 0 && <span className="tnum">缓存写入 {fmtCompact(pageCacheWrite)}</span>}
           </div>
         </CardContent>
       </Card>
@@ -134,7 +136,14 @@ export default function LogsPage() {
                       {fmtCompact(r.OutputTokens)}
                     </span>
                     {!!r.CachedTokens && (
-                      <span className="text-muted-foreground/80">缓存 {fmtCompact(r.CachedTokens)}</span>
+                      <span className="text-muted-foreground/80" title="缓存命中（读取）">
+                        缓存 {fmtCompact(r.CachedTokens)}
+                      </span>
+                    )}
+                    {!!r.CacheCreationTokens && (
+                      <span className="text-muted-foreground/80" title="缓存写入（新建缓存，单价通常高于命中）">
+                        写入 {fmtCompact(r.CacheCreationTokens)}
+                      </span>
                     )}
                   </span>
                 </Td>

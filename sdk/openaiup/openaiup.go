@@ -103,23 +103,34 @@ func ChatBody(req *pb.ChatRequest) map[string]interface{} {
 // openAIUsage 覆盖 OpenAI Chat/Responses 常见的缓存 token 与积分字段。
 // 积分字段各家中转命名不统一，这里把常见写法都收进来，取第一个非零值。
 type openAIUsage struct {
-	PromptTokens     int64   `json:"prompt_tokens"`
-	CompletionTokens int64   `json:"completion_tokens"`
-	CachedTokens     int64   `json:"cached_tokens"`
-	CreditsUsed      float64 `json:"credits_used"`
-	CreditUsed       float64 `json:"credit_used"`
-	Credits          float64 `json:"credits"`
-	CreditsConsumed  float64 `json:"credits_consumed"`
+	PromptTokens     int64 `json:"prompt_tokens"`
+	CompletionTokens int64 `json:"completion_tokens"`
+	CachedTokens     int64 `json:"cached_tokens"`
+	// 缓存写入：各家命名不统一（Anthropic 系 cache_creation_input_tokens、
+	// OpenAI 系 cache_write_tokens / cached_write_tokens），取最大值去重。
+	CacheWriteTokens    int64   `json:"cache_write_tokens"`
+	CachedWriteTokens   int64   `json:"cached_write_tokens"`
+	CacheCreationTokens int64   `json:"cache_creation_input_tokens"`
+	CreditsUsed         float64 `json:"credits_used"`
+	CreditUsed          float64 `json:"credit_used"`
+	Credits             float64 `json:"credits"`
+	CreditsConsumed     float64 `json:"credits_consumed"`
 	// Raw 保留整段 usage JSON：中转站对「积分」的命名五花八门，
 	// 固定字段匹配不到时用 fuzzyCredit 按名字兜底。
 	Raw           map[string]json.RawMessage `json:"-"`
 	PromptDetails *struct {
 		CachedTokens int64 `json:"cached_tokens"`
 		CacheRead    int64 `json:"cache_read_input_tokens"`
+		CacheWrite   int64 `json:"cache_write_tokens"`
+		CachedWrite  int64 `json:"cached_write_tokens"`
+		CacheCreate  int64 `json:"cache_creation_input_tokens"`
 	} `json:"prompt_tokens_details"`
 	InputDetails *struct {
 		CachedTokens int64 `json:"cached_tokens"`
 		CacheRead    int64 `json:"cache_read_input_tokens"`
+		CacheWrite   int64 `json:"cache_write_tokens"`
+		CachedWrite  int64 `json:"cached_write_tokens"`
+		CacheCreate  int64 `json:"cache_creation_input_tokens"`
 	} `json:"input_tokens_details"`
 }
 
@@ -251,12 +262,23 @@ func (p *Parser) finish(u *openAIUsage) {
 	if cached > u.PromptTokens {
 		cached = u.PromptTokens // 命中是输入的子集，上游给歪了也不能超过输入
 	}
+	// 缓存写入同样是输入的组成部分，别名取最大值去重
+	write := maxInt64(u.CacheWriteTokens, u.CachedWriteTokens, u.CacheCreationTokens)
+	if u.PromptDetails != nil {
+		write = maxInt64(write, u.PromptDetails.CacheWrite, u.PromptDetails.CachedWrite, u.PromptDetails.CacheCreate)
+	}
+	if u.InputDetails != nil {
+		write = maxInt64(write, u.InputDetails.CacheWrite, u.InputDetails.CachedWrite, u.InputDetails.CacheCreate)
+	}
+	if write > u.PromptTokens {
+		write = u.PromptTokens
+	}
 	p.emit(&pb.StreamEvent{Event: &pb.StreamEvent_MessageFinish{
 		MessageFinish: &pb.MessageFinish{
 			FinishReason: orDefault(p.pendingStop, "stop"),
 			Usage: &pb.Usage{
 				InputTokens: u.PromptTokens, OutputTokens: u.CompletionTokens,
-				CachedTokens: cached, CreditUsed: creditOf(u),
+				CachedTokens: cached, CacheCreationTokens: write, CreditUsed: creditOf(u),
 			},
 		},
 	}})

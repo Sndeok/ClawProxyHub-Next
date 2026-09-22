@@ -243,7 +243,7 @@ func TestOpenAIAndResponsesUsagePayload(t *testing.T) {
 		t.Errorf("OpenAI usage 缺少 prompt_tokens_details.cached_tokens：%+v", oa)
 	}
 
-	rp := responsesUsagePayload(100, 5, 80)
+	rp := responsesUsagePayload(u)
 	if rp["input_tokens"] != int64(100) || rp["total_tokens"] != int64(105) {
 		t.Errorf("Responses usage 口径错误：%+v", rp)
 	}
@@ -256,5 +256,21 @@ func TestOpenAIAndResponsesUsagePayload(t *testing.T) {
 	noCache := openAIUsagePayload(&pb.Usage{InputTokens: 10, OutputTokens: 1})
 	if _, ok := noCache["prompt_tokens_details"]; ok {
 		t.Errorf("无命中时不应输出 prompt_tokens_details：%+v", noCache)
+	}
+
+	// 缓存写入与缓存命中分列：写入走 cache_write_tokens 明细，不混进命中
+	write := openAIUsagePayload(&pb.Usage{InputTokens: 100, OutputTokens: 5, CachedTokens: 20, CacheCreationTokens: 30})
+	wd, _ := write["prompt_tokens_details"].(map[string]interface{})
+	if wd["cached_tokens"] != int64(20) || wd["cache_write_tokens"] != int64(30) {
+		t.Errorf("缓存写入未与命中分列：%+v", write)
+	}
+	rw := responsesUsagePayload(&pb.Usage{InputTokens: 100, OutputTokens: 5, CachedTokens: 20, CacheCreationTokens: 30})
+	rdw, _ := rw["input_tokens_details"].(map[string]interface{})
+	if rdw["cache_write_tokens"] != int64(30) {
+		t.Errorf("Responses 未透出缓存写入：%+v", rw)
+	}
+	// Anthropic 语义：input 不含缓存读写，两者各自成字段
+	if got := anthropicInputTokens(&pb.Usage{InputTokens: 100, CachedTokens: 20, CacheCreationTokens: 30}); got != 50 {
+		t.Errorf("Anthropic input_tokens 应扣除命中+写入：want 50 got %d", got)
 	}
 }

@@ -196,19 +196,21 @@ type RequestLog struct {
 	Protocol       string `gorm:"size:32;default:''"`
 	Stream         bool   `gorm:"column:stream;default:false"` // 客户端是否请求流式
 	Status         int32
-	FinishReason   string    `gorm:"column:finish_reason;size:32;default:''"` // stop/tool_calls/length...
-	Attempts       int32     `gorm:"column:attempts;default:1"`               // 含重试/换号/降级的总尝试次数
-	ErrorType      string    `gorm:"column:error_type;size:32;default:''"`    // 空 = 成功
-	InputTokens    int32     `gorm:"column:input_tokens;default:0"`
-	OutputTokens   int32     `gorm:"column:output_tokens;default:0"`
-	LatencyMs      int32     `gorm:"column:latency_ms;default:0"`
-	FirstTokenMs   int32     `gorm:"column:first_token_ms;default:0"` // 首字耗时
-	CachedTokens   int32     `gorm:"column:cached_tokens;default:0"`  // 缓存命中 token
-	CreditUsed     float64   `gorm:"column:credit_used;default:0"`    // 本次请求消耗积分（插件上报，0 = 未知）
-	ClientIP       string    `gorm:"column:client_ip;size:64;default:''"`
-	UserAgent      string    `gorm:"column:user_agent;size:256;default:''"`
-	ErrorBrief     string    `gorm:"column:error_brief;size:512;default:''"`
-	CreatedAt      time.Time `gorm:"index"`
+	FinishReason   string `gorm:"column:finish_reason;size:32;default:''"` // stop/tool_calls/length...
+	Attempts       int32  `gorm:"column:attempts;default:1"`               // 含重试/换号/降级的总尝试次数
+	ErrorType      string `gorm:"column:error_type;size:32;default:''"`    // 空 = 成功
+	InputTokens    int32  `gorm:"column:input_tokens;default:0"`
+	OutputTokens   int32  `gorm:"column:output_tokens;default:0"`
+	LatencyMs      int32  `gorm:"column:latency_ms;default:0"`
+	FirstTokenMs   int32  `gorm:"column:first_token_ms;default:0"` // 首字耗时
+	CachedTokens   int32  `gorm:"column:cached_tokens;default:0"`  // 缓存命中（读取）token
+	// 缓存写入 token（Anthropic cache_creation_input_tokens / OpenAI 系 cache_write_tokens）
+	CacheCreationTokens int32     `gorm:"column:cache_creation_tokens;default:0"`
+	CreditUsed          float64   `gorm:"column:credit_used;default:0"` // 本次请求消耗积分（插件上报，0 = 未知）
+	ClientIP            string    `gorm:"column:client_ip;size:64;default:''"`
+	UserAgent           string    `gorm:"column:user_agent;size:256;default:''"`
+	ErrorBrief          string    `gorm:"column:error_brief;size:512;default:''"`
+	CreatedAt           time.Time `gorm:"index"`
 }
 
 func (RequestLog) TableName() string { return "request_logs" }

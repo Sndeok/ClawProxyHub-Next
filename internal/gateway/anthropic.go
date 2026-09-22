@@ -299,6 +299,9 @@ func (s *anthSSEState) convertEvent(ev *pb.StreamEvent) string {
 			if e.MessageFinish.Usage.CachedTokens > 0 {
 				usage["cache_read_input_tokens"] = e.MessageFinish.Usage.CachedTokens
 			}
+			if e.MessageFinish.Usage.CacheCreationTokens > 0 {
+				usage["cache_creation_input_tokens"] = e.MessageFinish.Usage.CacheCreationTokens
+			}
 		}
 		out += anthEvent("message_delta", map[string]interface{}{
 			"type":  "message_delta",
@@ -312,15 +315,17 @@ func (s *anthSSEState) convertEvent(ev *pb.StreamEvent) string {
 }
 
 // anthropicInputTokens 把信封口径的输入 token 换算回 Anthropic 语义。
-// 信封：input_tokens 含缓存命中（cached 是其子集）；Anthropic：input_tokens 不含。
+// 信封：input_tokens 含缓存读写（cached / cache_creation 都是它的子集）；
+// Anthropic：input_tokens 两者都不含，分别落在 cache_read / cache_creation 字段上。
 func anthropicInputTokens(u *pb.Usage) int64 {
 	if u == nil {
 		return 0
 	}
-	if u.CachedTokens >= u.InputTokens {
-		return 0
+	rest := u.InputTokens - u.CachedTokens - u.CacheCreationTokens
+	if rest < 0 {
+		return 0 // 上游给歪了也不返回负数
 	}
-	return u.InputTokens - u.CachedTokens
+	return rest
 }
 
 // mapStopReason 信封 finish_reason → Anthropic stop_reason。
@@ -371,6 +376,9 @@ func (a *anthAggregate) result() map[string]interface{} {
 	}
 	if a.usage.CachedTokens > 0 {
 		usage["cache_read_input_tokens"] = a.usage.CachedTokens
+	}
+	if a.usage.CacheCreationTokens > 0 {
+		usage["cache_creation_input_tokens"] = a.usage.CacheCreationTokens
 	}
 	return map[string]interface{}{
 		"id": "msg_" + randHex(12), "type": "message", "role": "assistant",

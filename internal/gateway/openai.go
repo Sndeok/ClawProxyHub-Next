@@ -216,15 +216,19 @@ func (s *openaiSSEState) convertEvent(ev *pb.StreamEvent) string {
 // openAIUsagePayload 生成 OpenAI 兼容的 usage：prompt_tokens 含缓存命中，
 // prompt_tokens_details.cached_tokens 是其中的子集（OpenAI 官方口径）。
 func openAIUsagePayload(u *pb.Usage) map[string]interface{} {
-	in, out, cached := int64(0), int64(0), int64(0)
+	in, out, cached, write := int64(0), int64(0), int64(0), int64(0)
 	if u != nil {
-		in, out, cached = u.InputTokens, u.OutputTokens, u.CachedTokens
+		in, out, cached, write = u.InputTokens, u.OutputTokens, u.CachedTokens, u.CacheCreationTokens
 	}
 	payload := map[string]interface{}{
 		"prompt_tokens": in, "completion_tokens": out, "total_tokens": in + out,
 	}
-	if cached > 0 {
-		payload["prompt_tokens_details"] = map[string]interface{}{"cached_tokens": cached}
+	if cached > 0 || write > 0 {
+		details := map[string]interface{}{"cached_tokens": cached}
+		if write > 0 {
+			details["cache_write_tokens"] = write
+		}
+		payload["prompt_tokens_details"] = details
 	}
 	return payload
 }
