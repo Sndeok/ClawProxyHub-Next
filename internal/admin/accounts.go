@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"google.golang.org/protobuf/encoding/protojson"
@@ -186,6 +187,13 @@ func (s *Server) testAccount(w http.ResponseWriter, r *http.Request) {
 			}
 		case *pb.StreamEvent_TaskFailed:
 			logs = append(logs, fmt.Sprintf("✗ failed: code=%d %s", e.TaskFailed.Error.GetCode(), e.TaskFailed.Error.GetMessage()))
+			// 插件回传的诊断详情（完整上游返回 / 空流诊断等）一并展示：
+			// 在线测试不写 request_logs，详情只在这里能看到。
+			if d := strings.TrimSpace(e.TaskFailed.GetDetail()); d != "" {
+				for _, line := range strings.Split(d, "\n") {
+					logs = append(logs, "  "+line)
+				}
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
