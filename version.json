@@ -1,31 +1,23 @@
 {
-  "version": "1.1.0",
-  "release_url": "https://github.com/Sndeok/ClawProxyHub-Next/releases/tag/v1.1.0",
+  "version": "1.2.1",
+  "release_url": "https://github.com/Sndeok/ClawProxyHub-Next/releases/tag/v1.2.1",
   "changelog": {
     "title": {
-      "zh": "v1.1.0 — 协议兼容 · 可观测 · 模型中心",
-      "en": "v1.1.0 — protocol fixes, observability, model center"
+      "zh": "v1.2.1 — 升级可靠性 · 模型目录可读性",
+      "en": "v1.2.1 — install reliability, readable model catalog"
     },
     "items": [
       {
-        "zh": "账号模型默认可直连：对外模型 = 路由名 ∪ 账号目录模型，路由只是改名层",
-        "en": "Direct model routing: public models = routes ∪ account catalogs"
+        "zh": "插件升级不再因反代断流留下「半升级」：安装阶段与连接解绑 + 版本快照立即回写",
+        "en": "Plugin upgrades survive proxy disconnects: install detached from the request context"
       },
       {
-        "zh": "日志详情新增「完整上游返回」与「请求原文」，并支持 CSV 导出",
-        "en": "Log detail: full upstream response + raw request body, CSV export"
+        "zh": "账号详情模型目录显示上游模型名（Auto / GLM-5.3 / Kimi-K3 …），内部 key 作次要信息",
+        "en": "Account detail shows upstream model names, internal keys as secondary text"
       },
       {
-        "zh": "模型中心：系列 / 倍率 / 上下文 / 最大输出 / 推理档位",
-        "en": "Model center: series / credits / context / max output / reasoning efforts"
-      },
-      {
-        "zh": "新增会话粘性 + 过期积分优先策略 sticky_expiring",
-        "en": "New sticky_expiring routing strategy"
-      },
-      {
-        "zh": "账号详情与在线测试、路由/账号编辑弹窗、移动端适配",
-        "en": "Account detail & online test, edit dialogs, mobile layout"
+        "zh": "离线插件清单同步 qoder 0.1.7 / qoderwork 0.1.8（上游信封 statusCode 字符串导致的空流）",
+        "en": "Offline catalog synced to qoder 0.1.7 / qoderwork 0.1.8 (empty-stream fix)"
       }
     ]
   }

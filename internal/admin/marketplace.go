@@ -121,7 +121,8 @@ func (s *Server) marketplace(w http.ResponseWriter, r *http.Request) {
 //	{"phase":"stopping"|"installing"|"starting"}
 //	{"installed":"name"} 或 {"error":"..."}
 //
-// 客户端断开（前端取消）→ r.Context() 取消 → 下载/安装立即中断。
+// 客户端断开（前端取消）→ r.Context() 取消 → 下载立即中断。
+// 下载完成后的「安装」阶段改用 installCtx（与连接解绑）：反代掐断连接不该留下半升级状态。
 func (s *Server) installMarket(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name   string `json:"name"`
@@ -157,7 +158,10 @@ func (s *Server) installMarket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer os.Remove(zipPath)
 
-	name, err := s.installZip(r.Context(), zipPath, func(phase string) {
+	// 包已落临时文件：安装阶段同样与连接解绑（进度流断开不该让升级半途而废）。
+	ctx, cancel := installCtx(r)
+	defer cancel()
+	name, err := s.installZip(ctx, zipPath, func(phase string) {
 		pw.send(map[string]string{"phase": phase})
 	})
 	if err != nil {
@@ -214,12 +218,23 @@ func (s *Server) installUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tmp.Close()
-	name, err := s.installZip(r.Context(), tmp.Name(), nil)
+	// 安装阶段与 HTTP 连接解绑：反代在 ~60s 掐断 26MB 上传的连接后 r.Context() 会取消，
+	// 跟着取消就会留下「旧进程已停、二进制已换、新进程没起」的半升级状态
+	//（管理页表现为插件变 stopped、版本还是旧的，得手动点启动）。
+	ctx, cancel := installCtx(r)
+	defer cancel()
+	name, err := s.installZip(ctx, tmp.Name(), nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"installed": name})
+}
+
+// installCtx 安装/升级阶段的上下文：保留请求里的值，但不随连接断开而取消。
+// 调用方必须 defer cancel()。超时兜底，避免挂在启动握手上。
+func installCtx(r *http.Request) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Minute)
 }
 
 // installZipPath 安装本地包文件并刷新目录。

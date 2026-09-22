@@ -44,6 +44,12 @@ function pkgExpiry(p: CreditPackage): string {
   return at ? fmtTime(at) : '-'
 }
 
+// 模型徽标文案：优先上游 DisplayName（Auto / GLM-5.3 / Kimi-K3 …），
+// 没有才退回 key——只显示 dmodel/gmodel 这类内部 key 时用户根本看不出是哪个模型。
+function modelLabel(m: ModelInfo): string {
+  return m.label?.zh || m.label?.en || m.id
+}
+
 export function AccountDetail({
   open,
   account,
@@ -165,9 +171,15 @@ export function AccountDetail({
           <div className="mb-1 text-[13px] font-medium">模型目录（{models.length}）</div>
           <div className="flex max-h-[160px] flex-wrap gap-1 overflow-y-auto rounded-md border p-2">
             {models.length === 0 && <span className="text-[12.5px] text-muted-foreground">未同步（到「模型中心」点同步上游目录）</span>}
-            {models.map((m) => (
-              <Badge key={m.id}>{m.id}</Badge>
-            ))}
+            {models.map((m) => {
+              const label = modelLabel(m)
+              return (
+                <Badge key={m.id} title={m.id} className="gap-1">
+                  {label}
+                  {label !== m.id && <span className="text-[10.5px] opacity-60">{m.id}</span>}
+                </Badge>
+              )
+            })}
           </div>
         </div>
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.2.1 — 升级可靠性 · 模型目录可读性（2026-09-22）
+
+**插件安装 / 升级**
+- Fixed 安装阶段与 HTTP 连接解绑（`installCtx` = `context.WithoutCancel` + 5 分钟超时）。
+  此前上传 26MB 包时反代在 ~60s 掐断连接 → `r.Context()` 取消 → 旧进程已停、二进制已换、
+  新进程没起来，管理页显示「stopped + 旧版本号」，必须手动点启动才能恢复。
+- Fixed 安装 / 升级成功后立即把实例 manifest 写回 `plugins` 表：插件处于停止状态时
+  管理页不再显示升级前的旧版本（此前要等下次启动或重建容器才刷新）。
+
+**前端**
+- Fixed 账号详情「模型目录」徽标改为显示上游模型名（Auto / GLM-5.3 / Kimi-K3 / Qwen3.8-Max …），
+  内部 key（dmodel / gmodel / kmodel_latest）作为次要文字保留——满屏 key 看不出是什么模型。
+
+**插件清单**
+- Changed `internal/admin/offline_market.json` 同步到 qoder 0.1.7 / qoderwork 0.1.8：
+  修复上游嵌套 SSE 信封里 `statusCode` 是字符串 `"OK"` 时整帧被丢弃导致的「上游返回空内容」。
+
 ## v1.2.0 — 指纹注入 · 路由 UA · 安装进度 · 系统备份（2026-09-22）
 
 **网关注入（按入口协议）**

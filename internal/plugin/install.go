@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"google.golang.org/protobuf/encoding/protojson"
+
 	"github.com/Sndeok/ClawProxyHub-Next/sdk"
 )
 
@@ -118,10 +120,33 @@ func (m *Manager) InstallZip(ctx context.Context, zipPath string, onPhase func(s
 
 	// 4. 启动
 	phase("starting")
-	if _, err := m.Start(ctx, binPath); err != nil {
+	inst, err := m.Start(ctx, binPath)
+	if err != nil {
 		return manifest.Name, fmt.Errorf("installed but failed to start: %w", err)
 	}
+	// 5. 把新版本写回 plugins 表
+	m.syncPluginRecord(inst)
 	return manifest.Name, nil
+}
+
+// syncPluginRecord 把刚安装/升级成功的 manifest 写回 plugins 表。
+// 管理页读版本号的规则是「运行中取实例 manifest，停止时取库里的快照」，
+// 不写这一笔，升级后一旦进程没起来页面仍会显示旧版本（例如 0.1.4），
+// 用户会以为升级没生效。
+func (m *Manager) syncPluginRecord(inst *Instance) {
+	if m.db == nil || inst == nil || inst.Manifest == nil {
+		return
+	}
+	mf := inst.Manifest
+	raw, err := protojson.Marshal(mf)
+	if err != nil {
+		return
+	}
+	m.db.Exec(`INSERT INTO plugins (name, version, author, protocol_version, manifest_json, enabled)
+		VALUES (?,?,?,?,?,1)
+		ON CONFLICT(name) DO UPDATE SET version=excluded.version, author=excluded.author,
+		protocol_version=excluded.protocol_version, manifest_json=excluded.manifest_json`,
+		mf.Name, mf.Version, mf.Author, mf.ProtocolVersion, string(raw))
 }
 
 // Uninstall 停止并删除一个插件的全部本地文件。
