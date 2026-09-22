@@ -1,4 +1,4 @@
-// 把 Next 的静态导出结果搬到 Go 的嵌入目录（web/dist）。
+// 把 Next 的静态导出结果搬到 Go 的嵌入目录（web/dist，与源码同目录）。
 // 单独一个脚本而不是直接输出到那里：Next 需要先自己写完 out/ 再原子替换，
 // 否则构建中途失败会留下残缺的 dist，go build 会嵌进半成品。
 import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs'
@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const out = resolve(here, '..', 'out')
-const dest = resolve(here, '..', '..', 'web', 'dist')
+const dest = resolve(here, '..', 'dist')
 
 if (!existsSync(out)) {
   console.error('[export] 未找到 out/，请先跑 next build')

@@ -3,9 +3,9 @@
 .vscode
 data
 data-test
-web-next/node_modules
-web-next/.next
-web-next/out
+web/node_modules
+web/.next
+web/out
 web/dist
 *.exe
 *.log

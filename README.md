@@ -119,13 +119,13 @@ docker compose up -d --build
 go run ./cmd/cph
 
 # 前端（Next dev server，把 /admin /v1 代理到 :8080）
-cd web-next && pnpm install && pnpm dev
+cd web && pnpm install && pnpm dev
 ```
 
 前端产物必须经 `web/dist` 才能被 embed：
 
 ```bash
-cd web-next && pnpm build   # next build → out/ → 自动同步到 ../web/dist
+cd web && pnpm build        # next build → out/ → 自动同步到 web/dist
 cd .. && go build ./cmd/cph # 此时二进制里才有最新前端
 ```
 
@@ -160,7 +160,7 @@ internal/
   task/             任务调度引擎
 sdk/                插件 SDK（proto + 上游适配器 openaiup / anthropicup）
 web/                go:embed 包（嵌入 web/dist）
-web-next/           Next.js 前端源码（页面 + components/ui + lib）
+web/                Next.js 前端源码 + go:embed 目标（页面 / components/ui / lib / dist）
 ```
 
 ## 插件

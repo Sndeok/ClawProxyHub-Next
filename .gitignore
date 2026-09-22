@@ -1,4 +1,4 @@
-# 数据目录（SQLite / 插件 / 密钥）
+# 数据目录（SQLite / 插件 / 凭据密钥）
 data/
 data-test/
 
@@ -7,11 +7,10 @@ data-test/
 /cph
 release/
 
-# 前端
-web-next/node_modules/
-web-next/.next/
-web-next/out/
-web-next/next-env.d.ts
+# 前端（web/ 同时是 Next 源码目录与 go:embed 目录）
+web/node_modules/
+web/.next/
+web/out/
 web/dist/*
 !web/dist/.gitkeep
 
