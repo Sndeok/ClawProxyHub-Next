@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Sndeok/ClawProxyHub-Next/internal/account"
@@ -207,6 +208,38 @@ func (s *Server) createGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"id": g.ID})
+}
+
+// updateGroup PUT /admin/groups/{id} —— 重命名分组（分组名唯一，冲突回 400）。
+func (s *Server) updateGroup(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name     string `json:"name"`
+		Strategy string `json:"strategy"`
+	}
+	if !readBody(w, r, &body) {
+		return
+	}
+	var g model.Group
+	if err := s.db.First(&g, parseInt(r.PathValue("id"))).Error; err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+	updates := map[string]interface{}{}
+	if name := strings.TrimSpace(body.Name); name != "" {
+		updates["name"] = name
+	}
+	if body.Strategy != "" {
+		updates["strategy"] = body.Strategy
+	}
+	if len(updates) == 0 {
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
+	if err := s.db.Model(&g).Updates(updates).Error; err != nil {
+		http.Error(w, `{"error":"duplicate name"}`, http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // deleteGroup DELETE /admin/groups/{id}

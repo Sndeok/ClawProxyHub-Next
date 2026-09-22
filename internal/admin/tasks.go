@@ -51,6 +51,8 @@ func (s *Server) capabilityLabelMap(pluginName string) map[string]string {
 
 // ruleView 规则视图：能力展示名 + 插件品牌 + 账号范围，不暴露业务 id。
 type ruleView struct {
+	// TargetJSON 回显指定账号（账号名同时给人类可读的 Accounts）
+	TargetJSON   []int64    `json:"target_json,omitempty"`
 	ID           int64      `json:"id"`
 	PluginID     int64      `json:"plugin_id"`
 	Plugin       string     `json:"plugin"`
@@ -100,6 +102,7 @@ func (s *Server) listTaskRules(w http.ResponseWriter, r *http.Request) {
 		}
 		// 账号范围展示：account_ids 解析 TargetJSON；其余 scope 给中文说明
 		var accounts []string
+		var targetIDs []int64
 		switch rule.TargetScope {
 		case "all":
 			accounts = []string{"全部账号"}
@@ -109,12 +112,13 @@ func (s *Server) listTaskRules(w http.ResponseWriter, r *http.Request) {
 			var ids []int64
 			_ = json.Unmarshal([]byte(rule.TargetJSON), &ids)
 			accounts = s.accountNamesByID(ids)
+			targetIDs = ids
 		}
 		out = append(out, ruleView{
 			ID: rule.ID, PluginID: rule.PluginID, Plugin: s.pluginBrandByID(rule.PluginID),
 			CapabilityID: rule.CapabilityID, Capability: cap,
 			TriggerType: rule.TriggerType, TriggerValue: rule.TriggerValue,
-			TargetScope: rule.TargetScope, Accounts: accounts,
+			TargetScope: rule.TargetScope, Accounts: accounts, TargetJSON: targetIDs,
 			Enabled: rule.Enabled, NextRunAt: rule.NextRunAt, LastRunAt: rule.LastRunAt,
 		})
 	}
@@ -161,6 +165,8 @@ func (s *Server) createTaskRule(w http.ResponseWriter, r *http.Request) {
 		TriggerType  string `json:"trigger_type"`
 		TriggerValue string `json:"trigger_value"`
 		TargetScope  string `json:"target_scope"`
+		// 指定账号范围：此前前端传了但这里没接，导致「指定账号」永远落成空数组
+		TargetJSON []int64 `json:"target_json"`
 	}
 	if !readBody(w, r, &body) || body.PluginID == 0 || body.CapabilityID == "" {
 		http.Error(w, `{"error":"plugin_id and capability_id required"}`, http.StatusBadRequest)
@@ -169,10 +175,16 @@ func (s *Server) createTaskRule(w http.ResponseWriter, r *http.Request) {
 	if body.TargetScope == "" {
 		body.TargetScope = "all"
 	}
+	targetJSON := "[]"
+	if body.TargetScope == "account_ids" {
+		if raw, err := json.Marshal(body.TargetJSON); err == nil {
+			targetJSON = string(raw)
+		}
+	}
 	rule := model.TaskRule{
 		PluginID: body.PluginID, CapabilityID: body.CapabilityID,
 		TriggerType: body.TriggerType, TriggerValue: body.TriggerValue,
-		TargetScope: body.TargetScope, TargetJSON: "[]", Enabled: true,
+		TargetScope: body.TargetScope, TargetJSON: targetJSON, Enabled: true,
 	}
 	// next_run_at 由引擎 tick 补算
 	if err := s.db.Create(&rule).Error; err != nil {
@@ -180,6 +192,54 @@ func (s *Server) createTaskRule(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"id": rule.ID})
+}
+
+// updateTaskRule PUT /admin/task-rules/{id} —— 编辑规则（触发方式 / 账号范围 / 启用态）。
+// 触发方式变了要把 next_run_at 置空：引擎 tick 会按新配置补算（见 task.doTick）。
+func (s *Server) updateTaskRule(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		CapabilityID string  `json:"capability_id"`
+		TriggerType  string  `json:"trigger_type"`
+		TriggerValue string  `json:"trigger_value"`
+		TargetScope  string  `json:"target_scope"`
+		TargetJSON   []int64 `json:"target_json"`
+		Enabled      *bool   `json:"enabled"`
+	}
+	if !readBody(w, r, &body) {
+		return
+	}
+	var rule model.TaskRule
+	if err := s.db.First(&rule, parseInt(r.PathValue("id"))).Error; err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+	updates := map[string]interface{}{"next_run_at": nil}
+	if body.CapabilityID != "" {
+		updates["capability_id"] = body.CapabilityID
+	}
+	if body.TriggerType != "" {
+		updates["trigger_type"] = body.TriggerType
+		updates["trigger_value"] = body.TriggerValue
+	}
+	if body.TargetScope != "" {
+		updates["target_scope"] = body.TargetScope
+	}
+	if body.TargetScope == "account_ids" {
+		if raw, err := json.Marshal(body.TargetJSON); err == nil {
+			updates["target_json"] = string(raw)
+		}
+	}
+	if body.TargetScope == "all" || body.TargetScope == "rotate" {
+		updates["target_json"] = "[]"
+	}
+	if body.Enabled != nil {
+		updates["enabled"] = *body.Enabled
+	}
+	if err := s.db.Model(&rule).Updates(updates).Error; err != nil {
+		http.Error(w, `{"error":"update failed"}`, http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // deleteTaskRule DELETE /admin/task-rules/{id}

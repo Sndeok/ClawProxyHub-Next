@@ -20,6 +20,7 @@ interface Rule {
   trigger_type: string
   trigger_value: string
   target_scope: string
+  target_json?: number[]
   accounts: string[]
   enabled: boolean
   next_run_at: string | null
@@ -49,6 +50,7 @@ export default function TasksPage() {
   const [caps, setCaps] = useState<{ id: string; label: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [createOpen, setCreateOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<Rule | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
   const [form, setForm] = useState({
@@ -94,8 +96,41 @@ export default function TasksPage() {
     }
   }
 
+  // openCreate 新建；openEdit 复用同一表单（编辑走 PUT /admin/task-rules/{id}）
+  function openCreate() {
+    setEditTarget(null)
+    setForm({ plugin_id: 0, capability_id: '', trigger_type: 'daily', trigger_value: '09:00', target_scope: 'all', account_ids: [] })
+    setCreateOpen(true)
+  }
+
+  function openEdit(r: Rule) {
+    setEditTarget(r)
+    setForm({
+      plugin_id: r.plugin_id ?? 0,
+      capability_id: r.capability_id ?? '',
+      trigger_type: r.trigger_type ?? 'daily',
+      trigger_value: r.trigger_value ?? '',
+      target_scope: r.target_scope ?? 'all',
+      account_ids: r.target_json ?? [],
+    })
+    setCreateOpen(true)
+  }
+
   async function create() {
     try {
+      if (editTarget) {
+        await api.put('/admin/task-rules/' + editTarget.id, {
+          capability_id: form.capability_id,
+          trigger_type: form.trigger_type,
+          trigger_value: form.trigger_value,
+          target_scope: form.target_scope,
+          target_json: form.target_scope === 'account_ids' ? form.account_ids : [],
+        })
+        setCreateOpen(false)
+        setEditTarget(null)
+        await load()
+        return
+      }
       await api.post('/admin/task-rules', {
         plugin_id: Number(form.plugin_id),
         capability_id: form.capability_id,
@@ -160,7 +195,7 @@ export default function TasksPage() {
           <Button variant="outline" onClick={runAll} disabled={busy || rules.length === 0}>
             <Play className={busy ? 'h-3.5 w-3.5 animate-pulse' : 'h-3.5 w-3.5'} /> 全部执行
           </Button>
-          <Button onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5" /> 新建规则</Button>
+          <Button onClick={openCreate}><Plus className="h-3.5 w-3.5" /> 新建规则</Button>
         </div>
       </div>
 
@@ -205,7 +240,8 @@ export default function TasksPage() {
                   </Td>
                   <Td>
                     <div className="flex items-center gap-3 text-[12.5px]">
-                      <button className="underline-offset-2 hover:underline" onClick={() => runNow(r)}>立即执行</button>
+                      <button className="underline-offset-2 hover:underline" onClick={() => openEdit(r)}>编辑</button>
+                    <button className="underline-offset-2 hover:underline" onClick={() => runNow(r)}>立即执行</button>
                       <button className="text-[var(--destructive)] underline-offset-2 hover:underline" onClick={() => removeRule(r.id)}>删除</button>
                     </div>
                   </Td>
@@ -253,9 +289,9 @@ export default function TasksPage() {
         </TableShell>
       )}
 
-      <Modal open={createOpen} title="新建调度规则" onClose={() => setCreateOpen(false)}
+      <Modal open={createOpen} title={editTarget ? '编辑调度规则' : '新建调度规则'} onClose={() => setCreateOpen(false)}
         footer={<><Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button>
-          <Button onClick={create} disabled={!form.plugin_id || !form.capability_id || !form.trigger_value}>创建</Button></>}>
+          <Button onClick={create} disabled={!form.capability_id || !form.trigger_value}>{editTarget ? '保存' : '创建'}</Button></>}>
         <Field label="插件">
           <Select className="w-full" value={form.plugin_id} onChange={(e) => onPluginChange(Number(e.target.value))}>
             <option value={0}>选择插件</option>

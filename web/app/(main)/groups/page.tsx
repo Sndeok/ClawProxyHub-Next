@@ -52,6 +52,19 @@ export default function GroupsPage() {
     }
   }
 
+  // rename 重命名分组（服务端校验同名冲突）
+  async function rename(g: GroupInfo) {
+    const name = window.prompt('新的分组名称', g.name)
+    if (!name || name === g.name) return
+    setNotice('')
+    try {
+      await api.put('/admin/groups/' + g.id, { name })
+      await load()
+    } catch (e) {
+      setNotice((e as Error).message)
+    }
+  }
+
   async function remove(id: number) {
     await api.del(`/admin/groups/${id}`)
     await load()
@@ -99,6 +112,7 @@ export default function GroupsPage() {
                 <Td className="tnum text-right">{g.accounts}</Td>
                 <Td>
                   <div className="flex items-center gap-3 text-[12.5px]">
+                    <button className="underline-offset-2 hover:underline" onClick={() => void rename(g)}>重命名</button>
                     <button className="underline-offset-2 hover:underline" onClick={() => openBind(g)}>绑定代理</button>
                     <button className="text-[var(--destructive)] underline-offset-2 hover:underline" onClick={() => remove(g.id)}>删除</button>
                   </div>

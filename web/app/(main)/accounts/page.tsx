@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
+import { AccountDetail } from '@/components/account-detail'
 import { AccountEdit } from '@/components/account-edit'
 import { AccountWizard } from '@/components/account-wizard'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +20,7 @@ export default function AccountsPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Account | null>(null)
+  const [detailTarget, setDetailTarget] = useState<Account | null>(null)
   const [proxies, setProxies] = useState<ProxyRow[]>([])
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
@@ -200,6 +202,9 @@ export default function AccountsPage() {
                 </Td>
                 <Td className="whitespace-nowrap text-right">
                   <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[12.5px]">
+                    <button className="underline-offset-2 hover:underline" onClick={() => setDetailTarget(a)}>
+                      详情
+                    </button>
                     <button className="underline-offset-2 hover:underline" onClick={() => setEditTarget(a)}>
                       编辑
                     </button>
@@ -236,6 +241,8 @@ export default function AccountsPage() {
           </tbody>
         </Table>
       </TableShell>
+
+      <AccountDetail open={!!detailTarget} account={detailTarget} onClose={() => setDetailTarget(null)} />
 
       <AccountEdit
         open={!!editTarget}

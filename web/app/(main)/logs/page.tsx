@@ -57,6 +57,8 @@ export default function LogsPage() {
   const [detail, setDetail] = useState<RequestLog | null>(null)
   const [detailRaw, setDetailRaw] = useState<{ request_body?: string; error_detail?: string }>({})
   const [copyHint, setCopyHint] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const [exportHint, setExportHint] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -96,6 +98,34 @@ export default function LogsPage() {
       setCopyHint('复制失败，请手动选择文本')
     }
     setTimeout(() => setCopyHint(''), 1800)
+  }
+
+  // 导出 CSV：带上当前筛选条件（服务端最多 5 万行，带 BOM 便于 Excel 打开）
+  async function exportCSV() {
+    setExporting(true)
+    setExportHint('')
+    try {
+      const q = new URLSearchParams()
+      if (status) q.set('status', status)
+      if (protocol) q.set('protocol', protocol)
+      if (model) q.set('model', model)
+      if (keyword) q.set('q', keyword)
+      const resp = await fetch('/admin/logs/export?' + q.toString(), {
+        headers: { Authorization: 'Bearer ' + (window.localStorage.getItem('cph-admin-token') ?? '') },
+      })
+      if (!resp.ok) throw new Error(await resp.text())
+      const blob = await resp.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'cph-logs.csv'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setExportHint((e as Error).message)
+    } finally {
+      setExporting(false)
+    }
   }
 
   const logs = data?.logs ?? []
@@ -147,6 +177,10 @@ export default function LogsPage() {
           >
             重置
           </Button>
+          <Button variant="outline" size="sm" onClick={() => void exportCSV()} disabled={exporting}>
+            {exporting ? '导出中…' : '导出 CSV'}
+          </Button>
+          {exportHint && <span className="text-[12px] text-[var(--destructive)]">{exportHint}</span>}
           <div className="ml-auto flex items-center gap-3 text-[12px] text-muted-foreground">
             <span className="tnum">共 {total} 条</span>
             <span className="tnum">Σ {fmtCompact(pageTokens)}</span>

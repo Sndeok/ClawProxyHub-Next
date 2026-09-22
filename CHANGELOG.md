@@ -1,5 +1,42 @@
 # Changelog
 
+## v1.1.0 — 协议兼容 · 可观测 · 模型中心（2026-09-22）
+
+**网关 / 协议**
+- Added 按入口协议下发流式错误帧：Responses → `response.failed`、Anthropic → `error` 事件、
+  OpenAI → error chunk（此前是三种协议都不认的裸帧，断流会被当成正常结束）。
+- Added 请求参数补全：`max_completion_tokens` / `reasoning_effort` / `frequency_penalty` /
+  `presence_penalty` / `seed` / `parallel_tool_calls` / `response_format` / `user` / `top_k` /
+  `metadata.user_id`，显式 `temperature: 0` 与「未传」区分。
+- Added 缓存写入 token 全链路：`cph.proto` → SDK 解析 → 三协议用量 → 日志 → 前端。
+- Changed **对外模型 = 路由名 ∪ 账号目录模型**：账号里的模型默认可直接调用（凭据与出站代理照常注入），
+  路由只承担改名 / 映射；`router.ResolveDirect` + `/v1/models` 并集，受限 key 仍只透出自有路由。
+
+**可观测**
+- Added 日志详情：客户端请求原文 + 完整上游返回（插件回传，8KB 上限）；大字段 `json:"-"` 不进列表，
+  详情接口 `GET /admin/logs/{id}/detail` 按需拉取。
+- Added 日志 CSV 导出（带 UTF-8 BOM，含缓存写入与积分列）。
+
+**路由 / 任务**
+- Added 策略 `sticky_expiring`：会话粘性 + 快过期积分优先（新会话先烧快到期额度，同会话不换号）。
+- Changed 「同步上游模型」生成的默认策略为 `sticky_expiring`。
+- Fixed 任务规则「指定账号」此前前端传了 `target_json` 但后端未接收，永远落成空数组；
+  同时新增 `PUT /admin/task-rules/{id}`（编辑触发方式 / 账号范围）。
+
+**管理端 UI**
+- Added 账号新增向导（选客户端 → 授权 → 配置）、账号编辑弹窗、**账号详情 + 在线测试**（直调上游）。
+- Added 路由新建 / 编辑 / 删除弹窗（策略 / 分组权重 / 真实模型 / 首字超时 / 失败降级）。
+- Added 模型中心页：系列 / 积分倍率 / 上下文 / 最大输出 / 推理档位 + 搜索、系列与能力筛选、倍率排序。
+- Added 分组重命名（`PUT /admin/groups/{id}`）。
+- Changed 移动端适配：窄屏侧栏改抽屉、表格折叠次要列，390px 实测无横向滚动。
+- Changed 授权链接只展示不自动打开（复制 / 打开授权页由用户决定）。
+
+**插件**
+- workbuddy `0.1.11`：直连腾讯模型接口（显示名 / 上下文 / 最大输出 / 推理档位 / 积分倍率），
+  三路合并 `/v2`、`/console`、`/v3/config`，过滤非对话模型。
+- lobsterai `0.1.11`：模型目录补倍率 / 思考档位 / 上下文 / 最大输出（容错别名映射）。
+- 两者 HTTP 失败时回传完整上游返回（`TaskFailed.detail`），配合日志详情排查 400/500。
+
 ## 第 1 步重构：协议公共层 + 管理后台拆包 + 前端组件化（2026-09-21）
 
 **后端（纯搬家，行为不变）**

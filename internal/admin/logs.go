@@ -7,6 +7,8 @@
 package admin
 
 import (
+	"encoding/csv"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -182,6 +184,43 @@ func (s *Server) listLogs(w http.ResponseWriter, r *http.Request) {
 		resp["has_more"] = int64(q.page*q.pageSize) < total
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// exportLogs GET /admin/logs/export —— 按当前筛选导出 CSV（最多 5 万行）。
+// 带 UTF-8 BOM：Excel 直接双击不乱码；字段与列表一致，另含缓存写入与积分。
+func (s *Server) exportLogs(w http.ResponseWriter, r *http.Request) {
+	q := parseLogQuery(r)
+	const maxExport = 50000
+	var logs []model.RequestLog
+	if err := q.apply(s.db.Model(&model.RequestLog{})).Order("id DESC").Limit(maxExport).Find(&logs).Error; err != nil {
+		http.Error(w, `{"error":"db"}`, http.StatusInternalServerError)
+		return
+	}
+	name := fmt.Sprintf("cph-logs-%s.csv", time.Now().Format("20060102-150405"))
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", "attachment; filename=\""+name+"\"")
+	_, _ = w.Write([]byte{0xEF, 0xBB, 0xBF}) // BOM：Excel 识别 UTF-8
+	cw := csv.NewWriter(w)
+	_ = cw.Write([]string{"时间", "状态", "协议", "流式", "密钥", "账号", "请求模型", "上游模型",
+		"尝试", "结束原因", "输入Token", "输出Token", "缓存命中", "缓存写入", "积分",
+		"首字ms", "总耗时ms", "错误类型", "错误摘要", "IP", "User-Agent"})
+	for _, v := range s.logViews(logs) {
+		stream := "否"
+		if v.Stream {
+			stream = "是"
+		}
+		_ = cw.Write([]string{
+			v.CreatedAt.Format("2006-01-02 15:04:05"), strconv.Itoa(int(v.Status)), v.Protocol, stream,
+			v.KeyName, v.AccountName, v.RequestedModel, v.Model,
+			strconv.Itoa(int(v.Attempts)), v.FinishReason,
+			strconv.Itoa(int(v.InputTokens)), strconv.Itoa(int(v.OutputTokens)),
+			strconv.Itoa(int(v.CachedTokens)), strconv.Itoa(int(v.CacheCreationTokens)),
+			strconv.FormatFloat(v.CreditUsed, 'f', -1, 64),
+			strconv.Itoa(int(v.FirstTokenMs)), strconv.Itoa(int(v.LatencyMs)),
+			v.ErrorType, v.ErrorBrief, v.ClientIP, v.UserAgent,
+		})
+	}
+	cw.Flush()
 }
 
 // logDetail GET /admin/logs/{id}/detail —— 单条日志详情：
