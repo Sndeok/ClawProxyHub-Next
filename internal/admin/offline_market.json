@@ -12,6 +12,18 @@
     "sha256": "0a95142be4b144fa65ebdf9a4989532b53630f330f4eb24f128c29f68294ba55"
   },
   {
+    "name": "commandcode",
+    "version": "0.1.0",
+    "author": "cph",
+    "label": {
+      "en": "Command Code",
+      "zh": "Command Code"
+    },
+    "published_at": "2026-09-22",
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/commandcode-v0.1.0/commandcode-0.1.0.cphplugin",
+    "sha256": "968b48610bc726c0b47612d39bf444aa67c8db0ef4a97f73e2379502f72cb541"
+  },
+  {
     "name": "lobsterai",
     "version": "0.1.13",
     "author": "cph",
@@ -22,6 +34,18 @@
     "published_at": "2026-09-22",
     "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/lobsterai-v0.1.13/lobsterai-0.1.13.cphplugin",
     "sha256": "7790d6d2db3c97d2c06f7c607efe5619cc790a5e19731fc6a51b742e767c379a"
+  },
+  {
+    "name": "opencode",
+    "version": "0.1.0",
+    "author": "cph",
+    "label": {
+      "en": "OpenCode Zen",
+      "zh": "OpenCode Zen"
+    },
+    "published_at": "2026-09-22",
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/opencode-v0.1.0/opencode-0.1.0.cphplugin",
+    "sha256": "12b2d771b156df382539cd1db2d778a603ec7d92d8554dbab4493140a307ea85"
   },
   {
     "name": "qoder",
