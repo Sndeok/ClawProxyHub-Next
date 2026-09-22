@@ -128,6 +128,7 @@ func run() error {
 	// 路由解析器（会话粘性策略来自设置，改动即时生效）
 	rt := router.New(db)
 	rt.SetStickyPolicy(settings.StickyTTL(), settings.StickyCleanPeriod())
+	rt.SetDefaultStrategy(settings.RouteDefaultStrategy())
 	rt.StartJanitor(ctx)
 	gw := gateway.New(db, cfg.DataDir, plugins, rt, accounts, settings)
 	adminSrv := admin.New(db, accounts, plugins, engine, settings, cfg.MarketplaceURL, cfg.MarketProxy, rt)

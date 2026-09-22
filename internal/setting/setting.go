@@ -30,6 +30,9 @@ const KeyMarketProxy = "network.market_proxy"
 // 手工导入的目录与账号上报的模型在读取时合并，不单独建表。
 const KeyModelCatalog = "models.catalog_json"
 
+// KeyRouteDefaultStrategy 全局默认负载策略：路由未单独配置时生效。
+const KeyRouteDefaultStrategy = "route.default_strategy"
+
 // KeyLogRetentionDays 调用日志保留天数（0 = 保留全部，不自动清理）。
 const KeyLogRetentionDays = "logs.retention_days"
 
@@ -146,6 +149,15 @@ func (s *Store) OutboundIdentity() map[string]string {
 		"client_version": strings.TrimSpace(s.Get(KeyOutboundClientVersion, "")),
 		"cli_version":    strings.TrimSpace(s.Get(KeyOutboundCLIVersion, "")),
 	}
+}
+
+// RouteDefaultStrategy 全局默认负载策略（非法值回退内置默认）。
+func (s *Store) RouteDefaultStrategy() string {
+	v := strings.TrimSpace(s.Get(KeyRouteDefaultStrategy, ""))
+	if v == "" || !model.ValidRouteStrategy(v) {
+		return model.RouteStrategyDefault
+	}
+	return v
 }
 
 // StickyTTL 会话粘性保持时长（一次会话多久没活动就解除绑定）。

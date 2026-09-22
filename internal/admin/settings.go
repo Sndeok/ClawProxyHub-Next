@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Sndeok/ClawProxyHub-Next/internal/model"
 	"github.com/Sndeok/ClawProxyHub-Next/internal/setting"
 )
 
@@ -27,6 +28,8 @@ func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
 			"outbound_client_name":    s.settings.Get(setting.KeyOutboundClientName, ""),
 			"outbound_client_version": s.settings.Get(setting.KeyOutboundClientVersion, ""),
 			"outbound_cli_version":    s.settings.Get(setting.KeyOutboundCLIVersion, ""),
+			// 全局默认负载策略（路由未单独配置时生效）
+			"route_default_strategy": s.settings.RouteDefaultStrategy(),
 			// 会话粘性策略
 			"sticky_ttl":            shortDuration(s.settings.StickyTTL()),
 			"sticky_cleanup_period": shortDuration(s.settings.StickyCleanPeriod()),
@@ -48,6 +51,8 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		OutboundClientName    string `json:"outbound_client_name"`
 		OutboundClientVersion string `json:"outbound_client_version"`
 		OutboundCLIVersion    string `json:"outbound_cli_version"`
+		// 全局默认负载策略：留空 = 不改
+		RouteDefaultStrategy string `json:"route_default_strategy"`
 		// 会话粘性
 		StickyTTL           string `json:"sticky_ttl"`
 		StickyCleanupPeriod string `json:"sticky_cleanup_period"`
@@ -113,6 +118,14 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"error":"会话清理周期格式无效：用 Go 时长写法（5m / 10m），范围 30s–24h"}`, http.StatusBadRequest)
 		return
 	}
+	// 全局默认负载策略：非法值直接拒绝（避免以为生效其实回退默认）
+	if v := strings.TrimSpace(body.RouteDefaultStrategy); v != "" {
+		if !model.ValidRouteStrategy(v) || v == "" {
+			http.Error(w, `{"error":"未知的负载策略"}`, http.StatusBadRequest)
+			return
+		}
+		s.settings.Set(setting.KeyRouteDefaultStrategy, v)
+	}
 	for k, v := range identity {
 		s.settings.Set(k, v)
 	}
@@ -121,6 +134,7 @@ func (s *Server) putSettings(w http.ResponseWriter, r *http.Request) {
 	// 立即对运行中的路由生效（不必重启）
 	if s.routes != nil {
 		s.routes.SetStickyPolicy(stickyTTL, stickyClean)
+		s.routes.SetDefaultStrategy(s.settings.RouteDefaultStrategy())
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

@@ -234,8 +234,9 @@ func (s *Server) syncRoutes(w http.ResponseWriter, r *http.Request) {
 		}
 		groupsJSON, _ := json.Marshal(entries)
 		// 与手动新建保持一致：默认会话粘性，同一会话固定账号（上游缓存才可能命中）
-		rt := model.Route{Name: name, Strategy: "sticky_expiring", GroupsJSON: string(groupsJSON)}
-		if err := s.db.Create(&rt).Error; err != nil {
+		rt := model.Route{Name: name, Strategy: "", GroupsJSON: string(groupsJSON)} // 留空 = 跟随全局默认策略
+		// Select 显式列出列：空策略才不会被列默认值 round_robin 顶掉
+		if err := s.db.Select(routeInsertFields).Create(&rt).Error; err != nil {
 			failures = append(failures, opFailure{ID: 0, Name: name, Message: err.Error()})
 			continue
 		}

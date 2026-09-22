@@ -309,6 +309,14 @@ func (s *Server) listRoutes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]interface{}{"routes": routes})
 }
 
+// routeInsertFields 建路由时显式列出的列：Strategy 带 default:round_robin 标签，
+// GORM 默认会跳过零值字段，导致「跟随全局（空串）」被列默认值顶成轮询。
+var routeInsertFields = []string{
+	"name", "strategy", "groups_json", "timeout_seconds",
+	"failover_enabled", "failover_on_4xx", "failover_on_5xx",
+	"failover_group_id", "failover_model",
+}
+
 // routeBody 创建/编辑路由共用的请求体。
 type routeBody struct {
 	Name            string                  `json:"name"`
@@ -327,9 +335,9 @@ func (b *routeBody) validate() string {
 	if b.Name == "" || len(b.Groups) == 0 {
 		return "name and groups required"
 	}
-	if b.Strategy == "" {
-		// 默认会话粘性：同一会话固定账号，上游 prompt 缓存才可能命中
-		b.Strategy = "sticky"
+	// 策略留空 = 跟随全局默认（设置页 route.default_strategy），不再兜底成 sticky
+	if !model.ValidRouteStrategy(b.Strategy) {
+		return "未知的负载策略"
 	}
 	if b.TimeoutSeconds < 0 || b.TimeoutSeconds > 3600 {
 		return "timeout_seconds 需在 0–3600 秒之间（0 = 跟随全局）"
@@ -362,7 +370,8 @@ func (s *Server) createRoute(w http.ResponseWriter, r *http.Request) {
 		FailoverOn4xx: body.FailoverOn4xx, FailoverOn5xx: body.FailoverOn5xx,
 		FailoverGroupID: body.FailoverGroupID, FailoverModel: body.FailoverModel,
 	}
-	if err := s.db.Create(&rt).Error; err != nil {
+	// Select 显式列出列：确保空策略（跟随全局）不被列默认值覆盖
+	if err := s.db.Select(routeInsertFields).Create(&rt).Error; err != nil {
 		http.Error(w, `{"error":"duplicate name"}`, http.StatusBadRequest)
 		return
 	}

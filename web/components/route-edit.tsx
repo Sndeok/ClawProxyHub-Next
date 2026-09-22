@@ -16,8 +16,9 @@ export interface GroupEntry {
   model: string
 }
 
+// 具体策略（不含「跟随全局」）：路由弹窗与设置页共用同一份文案。
 export const STRATEGY_OPTIONS: [string, string][] = [
-  ['sticky_expiring', '会话粘性 + 过期积分优先（推荐：会话内固定账号，新会话先烧快过期积分）'],
+  ['sticky_expiring', '会话粘性 + 过期积分优先（会话内固定账号，新会话先烧快过期积分）'],
   ['sticky', '会话粘性（同一会话固定账号，缓存命中高）'],
   ['round_robin', '轮询'],
   ['random', '随机'],
@@ -25,23 +26,48 @@ export const STRATEGY_OPTIONS: [string, string][] = [
   ['expiring', '过期优先（先消耗快过期的积分）'],
 ]
 
+export const STRATEGY_LABEL: Record<string, string> = Object.fromEntries(STRATEGY_OPTIONS.map(([v, l]) => [v, l]))
+
+// strategyLabel 展示用短标签（路由列表 / 弹窗里的「当前全局」）。
+export function strategyLabel(s: string): string {
+  switch (s) {
+    case 'sticky_expiring':
+      return '会话粘性 + 过期积分优先'
+    case 'sticky':
+      return '会话粘性'
+    case 'round_robin':
+      return '轮询'
+    case 'random':
+      return '随机'
+    case 'least_used':
+      return '最少使用'
+    case 'expiring':
+      return '过期优先'
+    default:
+      return s || '跟随全局'
+  }
+}
+
 const emptyEntry = (groupID = 0): GroupEntry => ({ group_id: groupID, weight: 100, model: '' })
 
 export function RouteEdit({
   open,
   route,
   groups,
+  defaultStrategy,
   onClose,
   onSaved,
 }: {
   open: boolean
   route: RouteInfo | null
   groups: GroupInfo[]
+  // defaultStrategy 全局默认策略（设置页配置），用于「跟随全局」选项的展示
+  defaultStrategy: string
   onClose: () => void
   onSaved: () => void | Promise<void>
 }) {
   const [name, setName] = useState('')
-  const [strategy, setStrategy] = useState('sticky_expiring')
+  const [strategy, setStrategy] = useState('') // 空 = 跟随全局
   const [entries, setEntries] = useState<GroupEntry[]>([emptyEntry()])
   const [timeoutSec, setTimeoutSec] = useState(0)
   const [foEnabled, setFoEnabled] = useState(false)
@@ -50,6 +76,7 @@ export function RouteEdit({
   const [foGroup, setFoGroup] = useState(0)
   const [foModel, setFoModel] = useState('')
   const [models, setModels] = useState<string[]>([])
+  const globalStrategy = defaultStrategy
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
 
@@ -60,9 +87,10 @@ export function RouteEdit({
       .get<{ models: { id: string }[] }>('/admin/models')
       .then((r) => setModels((r.models ?? []).map((m) => m.id)))
       .catch(() => setModels([]))
+
     if (route) {
       setName(route.Name)
-      setStrategy(route.Strategy || 'sticky_expiring')
+      setStrategy(route.Strategy || '')
       try {
         const parsed = JSON.parse(route.GroupsJSON) as GroupEntry[]
         setEntries(parsed.length ? parsed : [emptyEntry()])
@@ -77,7 +105,7 @@ export function RouteEdit({
       setFoModel(route.FailoverModel || '')
     } else {
       setName('')
-      setStrategy('sticky_expiring')
+      setStrategy('')
       setEntries([emptyEntry(groups[0]?.id ?? 0)])
       setTimeoutSec(0)
       setFoEnabled(false)
@@ -110,7 +138,7 @@ export function RouteEdit({
     setNotice('')
     const body = {
       name: name.trim(),
-      strategy,
+      strategy, // 空 = 跟随全局
       groups: groupsOut,
       timeout_seconds: Number(timeoutSec) || 0,
       failover_enabled: foEnabled,
@@ -160,8 +188,9 @@ export function RouteEdit({
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：glm-5.3" />
       </Field>
 
-      <Field label="负载策略">
+      <Field label="负载策略" hint="留空 = 跟随「设置 → 负载策略」的全局默认，也可在这里单独覆盖">
         <Select className="w-full" value={strategy} onChange={(e) => setStrategy(e.target.value)}>
+          <option value="">跟随全局（当前：{strategyLabel(globalStrategy)}）</option>
           {STRATEGY_OPTIONS.map(([v, label]) => (
             <option key={v} value={v}>
               {label}

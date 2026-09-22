@@ -2,21 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { RouteEdit, type GroupEntry } from '@/components/route-edit'
+import { RouteEdit, strategyLabel, type GroupEntry } from '@/components/route-edit'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableShell, Td, Th, Tr } from '@/components/ui/table'
 import { api } from '@/lib/api'
 import type { GroupInfo, RouteInfo } from '@/lib/types'
 
-const STRATEGY: Record<string, string> = {
-  round_robin: '轮询',
-  random: '随机',
-  least_used: '最少使用',
-  sticky: '会话粘性',
-  sticky_expiring: '粘性 + 过期优先',
-  expiring: '过期优先',
-}
 
 function parseGroups(json: string): GroupEntry[] {
   try {
@@ -34,17 +26,22 @@ export default function RoutesPage() {
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [defaultStrategy, setDefaultStrategy] = useState('sticky_expiring')
   const [editTarget, setEditTarget] = useState<RouteInfo | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [r, g] = await Promise.all([
+      const [r, g, st] = await Promise.all([
         api.get<{ routes: RouteInfo[] }>('/admin/routes'),
         api.get<{ groups: GroupInfo[] }>('/admin/groups'),
+        api
+          .get<{ settings?: { route_default_strategy?: string } }>('/admin/settings')
+          .catch(() => ({ settings: undefined })),
       ])
       setRoutes(r.routes ?? [])
       setGroups(g.groups ?? [])
+      setDefaultStrategy(st.settings?.route_default_strategy || 'sticky_expiring')
     } finally {
       setLoading(false)
     }
@@ -143,7 +140,9 @@ export default function RoutesPage() {
                   </div>
                 </Td>
                 <Td>
-                  <Badge tone={r.Strategy === 'sticky_expiring' || r.Strategy === 'sticky' ? 'success' : 'neutral'}>{STRATEGY[r.Strategy] ?? r.Strategy}</Badge>
+                  <Badge tone={(r.Strategy || defaultStrategy).startsWith('sticky') ? 'success' : 'neutral'}>
+                      {r.Strategy ? strategyLabel(r.Strategy) : '全局 · ' + strategyLabel(defaultStrategy)}
+                    </Badge>
                 </Td>
                 <Td className="hidden md:table-cell">
                   <div className="flex flex-wrap gap-1">
@@ -186,6 +185,7 @@ export default function RoutesPage() {
 
       <RouteEdit
         open={dialogOpen}
+        defaultStrategy={defaultStrategy}
         route={editTarget}
         groups={groups}
         onClose={() => setDialogOpen(false)}

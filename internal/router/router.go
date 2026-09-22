@@ -11,6 +11,7 @@ import (
 	"math/rand"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gorm.io/gorm"
@@ -37,20 +38,48 @@ type stickyEntry struct {
 
 // Router 路由解析器。
 type Router struct {
-	db     *gorm.DB
-	mu     sync.Mutex
-	rr     map[int64]int64        // routeID → 轮询计数
-	sticky map[string]stickyEntry // 指纹 → 分组+账号
+	// defaultStrategy 全局默认负载策略（路由未配置时生效），设置页可改。
+	defaultStrategy atomic.Value // string
+	db              *gorm.DB
+	mu              sync.Mutex
+	rr              map[int64]int64        // routeID → 轮询计数
+	sticky          map[string]stickyEntry // 指纹 → 分组+账号
 	// 粘性策略（settings.sticky.*）：ttl = 会话保持时长，cleanEvery = 后台清理周期
 	ttl        time.Duration
 	cleanEvery time.Duration
 }
 
+// SetDefaultStrategy 更新全局默认负载策略（设置页保存时调用，立即生效）。
+func (r *Router) SetDefaultStrategy(s string) {
+	if s == "" || !model.ValidRouteStrategy(s) {
+		s = model.RouteStrategyDefault
+	}
+	r.defaultStrategy.Store(s)
+}
+
+// DefaultStrategy 当前全局默认策略。
+func (r *Router) DefaultStrategy() string {
+	if v, ok := r.defaultStrategy.Load().(string); ok && v != "" {
+		return v
+	}
+	return model.RouteStrategyDefault
+}
+
+// effectiveStrategy 路由生效策略：路由单独配置优先，留空则用全局默认。
+func (r *Router) effectiveStrategy(route *model.Route) string {
+	if route != nil && route.Strategy != "" {
+		return route.Strategy
+	}
+	return r.DefaultStrategy()
+}
+
 func New(db *gorm.DB) *Router {
-	return &Router{
+	rt := &Router{
 		db: db, rr: map[int64]int64{}, sticky: map[string]stickyEntry{},
 		ttl: defaultStickyTTL, cleanEvery: defaultStickyCleanEvery,
 	}
+	rt.SetDefaultStrategy(model.RouteStrategyDefault)
+	return rt
 }
 
 // SetStickyPolicy 更新粘性策略；非正值保持原值（管理端传空时用当前值兜底）。
@@ -131,9 +160,11 @@ func (r *Router) Resolve(key *model.Key, req *pb.ChatRequest) (*Resolved, error)
 		return nil, err
 	}
 
+	// 生效策略：路由单独配置优先，留空跟随全局默认
+	strategy := r.effectiveStrategy(route)
 	// 粘性优先：指纹命中且账号可用则复用
 	fp := Fingerprint(req)
-	if route.Strategy == "sticky" || route.Strategy == "sticky_expiring" {
+	if model.IsStickyStrategy(strategy) {
 		if res := r.lookupSticky(fp, route, entries); res != nil {
 			r.markUsed(res.Account.ID)
 			return res, nil
@@ -144,7 +175,7 @@ func (r *Router) Resolve(key *model.Key, req *pb.ChatRequest) (*Resolved, error)
 	entry := pickGroup(entries)
 
 	var acct *model.Account
-	switch route.Strategy {
+	switch strategy {
 	case "random":
 		acct = r.byRandom(entry.GroupID)
 	case "least_used":
@@ -155,7 +186,7 @@ func (r *Router) Resolve(key *model.Key, req *pb.ChatRequest) (*Resolved, error)
 		acct = r.byRoundRobin(route.ID, entry.GroupID)
 	}
 
-	if acct != nil && (route.Strategy == "sticky" || route.Strategy == "sticky_expiring") {
+	if acct != nil && model.IsStickyStrategy(strategy) {
 		r.saveSticky(fp, entry, acct.ID)
 	}
 	if acct != nil {
@@ -171,8 +202,9 @@ func (r *Router) PickFailover(route *model.Route) *Resolved {
 		return nil
 	}
 	gid := *route.FailoverGroupID
+	strategy := r.effectiveStrategy(route)
 	var acct *model.Account
-	switch route.Strategy {
+	switch strategy {
 	case "random":
 		acct = r.byRandom(gid)
 	case "least_used":

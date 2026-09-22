@@ -92,13 +92,42 @@ type KeyRoute struct {
 
 func (KeyRoute) TableName() string { return "key_routes" }
 
+// 负载策略取值。路由的 Strategy 留空 = 跟随全局默认（设置页 route.default_strategy）。
+const (
+	RouteStrategySticky         = "sticky"
+	RouteStrategyStickyExpiring = "sticky_expiring"
+	RouteStrategyRoundRobin     = "round_robin"
+	RouteStrategyRandom         = "random"
+	RouteStrategyLeastUsed      = "least_used"
+	RouteStrategyExpiring       = "expiring"
+	// RouteStrategyDefault 内置默认：会话内固定账号，新会话先烧快过期积分。
+	RouteStrategyDefault = RouteStrategyStickyExpiring
+)
+
+// ValidRouteStrategy 是否为已知策略（空串表示跟随全局，也算合法）。
+func ValidRouteStrategy(s string) bool {
+	switch s {
+	case "", RouteStrategySticky, RouteStrategyStickyExpiring, RouteStrategyRoundRobin,
+		RouteStrategyRandom, RouteStrategyLeastUsed, RouteStrategyExpiring:
+		return true
+	}
+	return false
+}
+
+// IsStickyStrategy 是否需要会话粘性（sticky / sticky_expiring）。
+func IsStickyStrategy(s string) bool {
+	return s == RouteStrategySticky || s == RouteStrategyStickyExpiring
+}
+
 // Route 路由：对外模型名 + 分组（含真实模型映射）权重表。
 // 路由名即客户端请求的 model 字段。
 type Route struct {
 	ID   int64  `gorm:"primaryKey;autoIncrement"`
 	Name string `gorm:"uniqueIndex;size:128"` // 对外模型名
 	// round_robin / random / least_used / sticky / sticky_expiring（粘性 + 快过期积分优先）/ expiring
-	Strategy   string `gorm:"size:16;default:round_robin"`
+	// 注意：这里刻意不写 default 标签 —— GORM 会跳过带 default 的零值字段，
+	// 导致「跟随全局（空串）」被列默认值 round_robin 顶掉。列级默认值仅作用于历史数据。
+	Strategy   string `gorm:"size:16"`
 	GroupsJSON string `gorm:"column:groups_json;default:'[]'"`
 	// 首事件超时（秒），0 = 跟随全局设置
 	TimeoutSeconds int32 `gorm:"column:timeout_seconds;default:0"`

@@ -21,10 +21,21 @@ interface Settings {
   outbound_cli_version?: string
   sticky_ttl?: string
   sticky_cleanup_period?: string
+  route_default_strategy?: string
   [k: string]: unknown
 }
 
 interface SchemaProp { title?: string; description?: string; default?: string }
+
+// 与后端 model.ValidRouteStrategy 保持一致的取值
+const ROUTE_STRATEGIES: [string, string][] = [
+  ['sticky_expiring', '会话粘性 + 过期积分优先（推荐）'],
+  ['sticky', '会话粘性（同一会话固定账号，缓存命中高）'],
+  ['round_robin', '轮询'],
+  ['random', '随机'],
+  ['least_used', '最少使用'],
+  ['expiring', '过期优先（先消耗快过期的积分）'],
+]
 
 export default function SettingsPage() {
   const [s, setS] = useState<Settings | null>(null)
@@ -249,6 +260,37 @@ export default function SettingsPage() {
               </Button>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>负载策略</CardTitle>
+          <span className="text-[11.5px] text-muted-foreground">全局默认；路由里可以单独覆盖</span>
+        </CardHeader>
+        <CardContent>
+          <Field
+            label="默认策略"
+            hint="新建路由与未单独配置策略的路由都使用它。会话粘性类策略让同一会话固定账号，上游缓存命中更高"
+          >
+            <Select
+              className="w-full"
+              value={s.route_default_strategy ?? 'sticky_expiring'}
+              onChange={(e) => setS({ ...s, route_default_strategy: e.target.value })}
+            >
+              {ROUTE_STRATEGIES.map(([v, label]) => (
+                <option key={v} value={v}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Button
+            onClick={() => save('route', { route_default_strategy: s.route_default_strategy ?? 'sticky_expiring' })}
+            disabled={saving === 'route'}
+          >
+            <Save className="h-3.5 w-3.5" /> 保存
+          </Button>
         </CardContent>
       </Card>
 
