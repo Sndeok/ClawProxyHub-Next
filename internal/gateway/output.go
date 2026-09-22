@@ -12,12 +12,39 @@ import (
 // streamEncoder 流式编码器：把信封事件编码为协议 SSE 文本。
 type streamEncoder interface {
 	convertEvent(ev *pb.StreamEvent) string
+	// failure 流中途失败时的协议错误事件。
+	// 客户端据此报错；缺了它上游断流会被当成"正常结束"，表现为「复杂操作不回复」。
+	failure(message string) string
 	// finish 流结束后的尾部输出（OpenAI 的 [DONE] 等）。
 	finish() string
 }
 
 func (s *anthSSEState) finish() string   { return "" }
 func (s *openaiSSEState) finish() string { return "data: [DONE]\n\n" }
+
+// failure Anthropic：error 事件（SDK 直接抛出 api_error）。
+func (s *anthSSEState) failure(message string) string {
+	return anthEvent("error", map[string]interface{}{
+		"error": map[string]interface{}{"type": "api_error", "message": message},
+	})
+}
+
+// failure OpenAI：错误 chunk（OpenAI SDK 按 error 字段抛异常）。
+func (s *openaiSSEState) failure(message string) string {
+	return s.chunkRaw(map[string]interface{}{
+		"error": map[string]interface{}{"type": "upstream_error", "message": message},
+	})
+}
+
+// failure Responses：response.failed + status=failed（Codex 据此展示失败原因）。
+func (s *responsesSSEState) failure(message string) string {
+	return respEvent("response.failed", map[string]interface{}{
+		"response": map[string]interface{}{
+			"id": s.respID, "object": "response", "model": s.model, "status": "failed",
+			"error": map[string]interface{}{"code": "server_error", "message": message},
+		},
+	})
+}
 
 // aggregate 非流式聚合器。
 type aggregate interface {
@@ -62,14 +89,10 @@ func (s *Server) streamOut(w http.ResponseWriter, events chan *pb.StreamEvent, f
 			log.status = http.StatusBadGateway
 			log.errorType = "upstream_error"
 			log.errBrief = failed.TaskFailed.Error.GetMessage()
-			errPayload, _ := json.Marshal(map[string]interface{}{
-				"error": map[string]interface{}{
-					"type":    "upstream_error",
-					"message": failed.TaskFailed.Error.GetMessage(),
-					"code":    failed.TaskFailed.Error.GetCode(),
-				},
-			})
-			io.WriteString(w, "data: "+string(errPayload)+"\n\n")
+			// 按入口协议下发错误帧：Codex(responses) 认 response.failed、
+			// Anthropic SDK 认 error 事件、OpenAI SDK 认 error chunk。
+			// 少了它上游断流会被当成"正常结束"，表现为「复杂操作不回复」。
+			io.WriteString(w, enc.failure(log.errBrief))
 			if flusher != nil {
 				flusher.Flush()
 			}
@@ -153,8 +176,11 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 	json.NewEncoder(w).Encode(v)
 }
 
+// errBody 错误响应体：OpenAI 形态的 error 对象 + Anthropic 要求的顶层 type=error，
+// 两个 SDK 都能解析（Anthropic 缺顶层 type 会报 unexpected response shape）。
 func errBody(errType string, err error) map[string]interface{} {
 	return map[string]interface{}{
+		"type":  "error",
 		"error": map[string]string{"type": errType, "message": err.Error()},
 	}
 }

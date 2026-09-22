@@ -4,6 +4,7 @@ package gateway
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	pb "github.com/Sndeok/ClawProxyHub-Next/sdk/proto/cphv1"
 )
@@ -22,7 +23,10 @@ func parseAnthropicRequest(body []byte) (*pb.ChatRequest, error) {
 		ToolChoice    json.RawMessage `json:"tool_choice"`
 		Stream        bool            `json:"stream"`
 		Thinking      json.RawMessage `json:"thinking"`
-		Metadata      json.RawMessage `json:"metadata"`
+		Metadata      struct {
+			UserID string `json:"user_id"`
+		} `json:"metadata"`
+		TopK *int `json:"top_k"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("invalid json: %w", err)
@@ -70,6 +74,12 @@ func parseAnthropicRequest(body []byte) (*pb.ChatRequest, error) {
 	// thinking 块原样透传给插件
 	if len(raw.Thinking) > 0 {
 		req.Extra["thinking"] = string(raw.Thinking)
+	}
+	if raw.TopK != nil {
+		req.Extra["top_k"] = strconv.Itoa(*raw.TopK)
+	}
+	if raw.Metadata.UserID != "" {
+		req.Extra["user"] = raw.Metadata.UserID
 	}
 
 	return req, nil

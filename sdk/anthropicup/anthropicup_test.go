@@ -165,3 +165,20 @@ func TestParserCacheUsageFromDelta(t *testing.T) {
 		t.Errorf("cached = %d, want 400", got)
 	}
 }
+
+// TestChatBodyTopKUser 回归：top_k 与 metadata.user_id 是 Anthropic 原生字段，必须透传。
+func TestChatBodyTopKUser(t *testing.T) {
+	req := &pb.ChatRequest{
+		Model: "claude-x", Stream: true, MaxTokens: 64, Temperature: 1,
+		Messages: []*pb.EnvelopeMessage{{Role: "user", Text: "hi"}},
+		Extra:    map[string]string{"temperature": "0", "top_k": "40", "user": "u-123"},
+	}
+	body := ChatBody(req)
+	b, _ := json.Marshal(body)
+	s := string(b)
+	for _, want := range []string{`"temperature":0`, `"top_k":40`, `"metadata":{"user_id":"u-123"}`} {
+		if !strings.Contains(s, want) {
+			t.Errorf("body missing %q:\n%s", want, s)
+		}
+	}
+}

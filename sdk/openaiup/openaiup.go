@@ -84,6 +84,19 @@ func ChatBody(req *pb.ChatRequest) map[string]interface{} {
 	if v, ok := req.Extra["reasoning_effort"]; ok && v != "" {
 		body["reasoning_effort"] = v
 	}
+	// 显式 temperature（含 0）：客户端传了就以它为准，覆盖信封的浮点字段
+	if v, ok := req.Extra["temperature"]; ok && v != "" {
+		body["temperature"] = jsonNumber(v)
+	}
+	// 采样/控制参数原样透传（值在核心侧已校验为合法 JSON 片段）
+	for _, k := range []string{"frequency_penalty", "presence_penalty", "seed", "parallel_tool_calls", "response_format"} {
+		if v, ok := req.Extra[k]; ok && v != "" {
+			body[k] = rawJSON(v)
+		}
+	}
+	if v, ok := req.Extra["user"]; ok && v != "" {
+		body["user"] = v
+	}
 	return body
 }
 

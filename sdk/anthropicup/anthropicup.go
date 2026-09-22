@@ -4,6 +4,7 @@ package anthropicup
 import (
 	"encoding/base64"
 	"encoding/json"
+	"strconv"
 	"strings"
 
 	pb "github.com/Sndeok/ClawProxyHub-Next/sdk/proto/cphv1"
@@ -79,6 +80,16 @@ func ChatBody(req *pb.ChatRequest) map[string]interface{} {
 	}
 	if req.Temperature > 0 {
 		body["temperature"] = req.Temperature
+	}
+	// 显式 temperature（含 0）优先；top_k / metadata.user_id 同为 Anthropic 原生字段
+	if v, ok := req.Extra["temperature"]; ok && v != "" {
+		body["temperature"] = jsonNumber(v)
+	}
+	if v, ok := req.Extra["top_k"]; ok && v != "" {
+		body["top_k"] = jsonNumber(v)
+	}
+	if v, ok := req.Extra["user"]; ok && v != "" {
+		body["metadata"] = map[string]interface{}{"user_id": v}
 	}
 	return body
 }
@@ -355,6 +366,14 @@ func (u anthropicUsage) envelope() *pb.Usage {
 }
 
 // ---------- 工具 ----------
+
+// jsonNumber 数字字符串 → 数字；解析失败返回 0（绝不把 "0.7" 当字符串发给上游）。
+func jsonNumber(s string) interface{} {
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return f
+	}
+	return 0
+}
 
 func rawJSON(s string) interface{} {
 	var v interface{}

@@ -7,7 +7,18 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"sort"
+	"strconv"
+
+	pb "github.com/Sndeok/ClawProxyHub-Next/sdk/proto/cphv1"
 )
+
+// setTemperature 显式给出的 temperature 记进 Extra（含 0）：插件据此区分
+// 「客户端没传」与「客户端明确要求 0」——后者在代码生成场景很常见。
+func setTemperature(req *pb.ChatRequest, t *float64) {
+	if t != nil {
+		req.Extra["temperature"] = strconv.FormatFloat(*t, 'g', -1, 64)
+	}
+}
 
 func randHex(n int) string {
 	b := make([]byte, n)

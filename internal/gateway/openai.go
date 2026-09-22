@@ -11,21 +11,34 @@ import (
 // parseChatCompletions 把 /v1/chat/completions 请求体转成统一信封。
 func parseChatCompletions(body []byte) (*pb.ChatRequest, error) {
 	var raw struct {
-		Model       string          `json:"model"`
-		Messages    []openaiMessage `json:"messages"`
-		MaxTokens   int32           `json:"max_tokens"`
-		Temperature *float64        `json:"temperature"`
-		TopP        *float64        `json:"top_p"`
-		Stop        json.RawMessage `json:"stop"`
-		Tools       []openaiTool    `json:"tools"`
-		ToolChoice  json.RawMessage `json:"tool_choice"`
-		Stream      bool            `json:"stream"`
+		Model     string          `json:"model"`
+		Messages  []openaiMessage `json:"messages"`
+		MaxTokens int32           `json:"max_tokens"`
+		// 新版字段：o 系 / gpt-5 系只认 max_completion_tokens，二者取其一
+		MaxCompletionTokens int32           `json:"max_completion_tokens"`
+		Temperature         *float64        `json:"temperature"`
+		TopP                *float64        `json:"top_p"`
+		Stop                json.RawMessage `json:"stop"`
+		Tools               []openaiTool    `json:"tools"`
+		ToolChoice          json.RawMessage `json:"tool_choice"`
+		Stream              bool            `json:"stream"`
+		ReasoningEffort     string          `json:"reasoning_effort"`
+		// 只对 OpenAI 系上游有意义的采样/控制参数：原样透传给插件
+		FrequencyPenalty  json.RawMessage `json:"frequency_penalty"`
+		PresencePenalty   json.RawMessage `json:"presence_penalty"`
+		Seed              json.RawMessage `json:"seed"`
+		ParallelToolCalls json.RawMessage `json:"parallel_tool_calls"`
+		ResponseFormat    json.RawMessage `json:"response_format"`
+		User              string          `json:"user"`
 	}
 	if err := json.Unmarshal(body, &raw); err != nil {
 		return nil, fmt.Errorf("invalid json: %w", err)
 	}
 	if len(raw.Messages) == 0 {
 		return nil, fmt.Errorf("messages is required")
+	}
+	if raw.MaxTokens == 0 {
+		raw.MaxTokens = raw.MaxCompletionTokens
 	}
 
 	req := &pb.ChatRequest{
@@ -35,11 +48,26 @@ func parseChatCompletions(body []byte) (*pb.ChatRequest, error) {
 		Temperature: deref(raw.Temperature),
 		Extra:       map[string]string{},
 	}
+	setTemperature(req, raw.Temperature)
 	if raw.TopP != nil {
 		req.Extra["top_p"] = fmt.Sprintf("%g", *raw.TopP)
 	}
 	if len(raw.Stop) > 0 {
 		req.Extra["stop"] = string(raw.Stop)
+	}
+	if raw.ReasoningEffort != "" {
+		req.Extra["reasoning_effort"] = raw.ReasoningEffort
+	}
+	for k, v := range map[string]json.RawMessage{
+		"frequency_penalty": raw.FrequencyPenalty, "presence_penalty": raw.PresencePenalty,
+		"seed": raw.Seed, "parallel_tool_calls": raw.ParallelToolCalls, "response_format": raw.ResponseFormat,
+	} {
+		if len(v) > 0 && string(v) != "null" {
+			req.Extra[k] = string(v)
+		}
+	}
+	if raw.User != "" {
+		req.Extra["user"] = raw.User
 	}
 
 	for i := range raw.Messages {

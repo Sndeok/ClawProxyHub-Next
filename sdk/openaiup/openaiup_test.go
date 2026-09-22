@@ -199,3 +199,42 @@ func TestParserCachedAndCreditUsage(t *testing.T) {
 		})
 	}
 }
+
+// TestChatBodyExtraPassthrough 回归：核心解析出的采样/控制参数必须落到上游请求体，
+// 否则 new-api 传来的 seed / penalties / response_format 会被静默吞掉。
+func TestChatBodyExtraPassthrough(t *testing.T) {
+	req := &pb.ChatRequest{
+		Model: "kimi-k3", Stream: true, MaxTokens: 128, Temperature: 0.7,
+		Messages: []*pb.EnvelopeMessage{{Role: "user", Text: "hi"}},
+		Extra: map[string]string{
+			"temperature":         "0",
+			"reasoning_effort":    "high",
+			"frequency_penalty":   "0.5",
+			"presence_penalty":    "-0.25",
+			"seed":                "42",
+			"parallel_tool_calls": "false",
+			"response_format":     `{"type":"json_object"}`,
+			"user":                "kylin",
+		},
+	}
+	body := ChatBody(req)
+	b, _ := json.Marshal(body)
+	s := string(b)
+	for _, want := range []string{
+		`"temperature":0`, // Extra 覆盖信封浮点字段（显式 0 不被吞）
+		`"reasoning_effort":"high"`,
+		`"frequency_penalty":0.5`,
+		`"presence_penalty":-0.25`,
+		`"seed":42`,
+		`"parallel_tool_calls":false`,
+		`"response_format":{"type":"json_object"}`,
+		`"user":"kylin"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("body missing %q:\n%s", want, s)
+		}
+	}
+	if strings.Contains(s, `"temperature":0.7`) {
+		t.Errorf("显式 temperature 未覆盖信封字段:\n%s", s)
+	}
+}
