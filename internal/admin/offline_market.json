@@ -61,27 +61,27 @@
   },
   {
     "name": "qoder",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "author": "cph",
     "label": {
       "en": "Qoder",
       "zh": "Qoder"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoder-v0.1.2/qoder-0.1.2.cphplugin",
-    "sha256": "ef257ea90cd9d08a7f04203ac6e3b7e5ce95f830398800bec570a17cf54ad93b"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoder-v0.1.3/qoder-0.1.3.cphplugin",
+    "sha256": "3023f25f25bfac2b2e82af58984ad0c53aa9427ccc0b3b9a1da8ecb9241e1325"
   },
   {
     "name": "qoderwork",
-    "version": "0.1.3",
+    "version": "0.1.4",
     "author": "cph",
     "label": {
       "en": "QoderWork",
       "zh": "QoderWork"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoderwork-v0.1.3/qoderwork-0.1.3.cphplugin",
-    "sha256": "9115eba08d214f835cf98afc016d15dfe9ff72626b6442d6f489022955bdb22c"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoderwork-v0.1.4/qoderwork-0.1.4.cphplugin",
+    "sha256": "d9c6a9bc200acb383e1345270eb5acebb5d0afca99944cbcff83db41f770f3ae"
   },
   {
     "name": "workbuddy",
