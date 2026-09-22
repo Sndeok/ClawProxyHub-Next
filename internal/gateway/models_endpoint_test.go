@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gorm.io/gorm"
@@ -31,8 +32,15 @@ func (s stubRegistry) ResolveModel(name string) (string, bool) {
 
 func (s stubRegistry) Endpoints(string) []string { return nil }
 
-func (s stubRegistry) Chat(context.Context, *pb.ChatRequest, string, *pb.CredentialBlob) (chan *pb.StreamEvent, error) {
-	return nil, nil
+// Chat 返回一段固定的两帧流（含结束帧），供处理器级回归测试使用。
+func (s stubRegistry) Chat(_ context.Context, req *pb.ChatRequest, _ string, _ *pb.CredentialBlob) (chan *pb.StreamEvent, error) {
+	ch := make(chan *pb.StreamEvent, 3)
+	ch <- &pb.StreamEvent{Event: &pb.StreamEvent_MessageStart{MessageStart: &pb.MessageStart{Model: req.Model}}}
+	ch <- &pb.StreamEvent{Event: &pb.StreamEvent_ContentDelta{ContentDelta: &pb.ContentDelta{Text: "你好"}}}
+	ch <- &pb.StreamEvent{Event: &pb.StreamEvent_MessageFinish{MessageFinish: &pb.MessageFinish{
+		FinishReason: "stop", Usage: &pb.Usage{InputTokens: 3, OutputTokens: 2}}}}
+	close(ch)
+	return ch, nil
 }
 
 func openGatewayTestDB(t *testing.T) *gorm.DB {
@@ -109,5 +117,56 @@ func TestModelsEndpointUnionsRoutesAndAccountCatalog(t *testing.T) {
 		if !want[id] {
 			t.Fatalf("出现未预期模型 %q（got %v）", id, got)
 		}
+	}
+}
+
+// TestDirectModelNotBlockedByExistingRoutes 回归：实例里存在路由时，未绑定路由的 key
+// 依然可以用账号目录里的模型直连（此前一律 403 not in authorized routes）。
+func TestDirectModelNotBlockedByExistingRoutes(t *testing.T) {
+	db := openGatewayTestDB(t)
+
+	plugin := &model.Plugin{Name: "stub", Author: "cph", Enabled: true}
+	if err := db.Create(plugin).Error; err != nil {
+		t.Fatal(err)
+	}
+	group := &model.Group{Name: "g1", PluginID: plugin.ID, Strategy: "sticky"}
+	if err := db.Create(group).Error; err != nil {
+		t.Fatal(err)
+	}
+	acct := model.Account{PluginID: plugin.ID, DisplayName: "A", Status: "active",
+		ModelsJSON: `[{"id":"kmodel_latest"}]`}
+	if err := db.Create(&acct).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.AccountGroup{AccountID: acct.ID, GroupID: group.ID}).Error; err != nil {
+		t.Fatal(err)
+	}
+	// 关键点：实例里有一条路由，未绑定 key 仍然要能走直连
+	route := &model.Route{Name: "alias-1", Strategy: "sticky",
+		GroupsJSON: fmt.Sprintf(`[{"group_id":%d,"weight":1,"model":"kmodel_latest"}]`, group.ID)}
+	if err := db.Create(route).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	const raw = "cph-direct-key"
+	sum := sha256.Sum256([]byte(raw))
+	key := &model.Key{Name: "direct", KeyHash: hex.EncodeToString(sum[:]), Enabled: true}
+	if err := db.Create(key).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	srv := New(db, t.TempDir(), stubRegistry{models: map[string]string{"kmodel_latest": "stub"}}, router.New(db), nil, nil)
+	body := `{"model":"kmodel_latest","messages":[{"role":"user","content":"hi"}],"stream":false}`
+	req := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+raw)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("直连模型不应被拒：status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "你好") {
+		t.Fatalf("响应缺少上游内容：%s", rec.Body.String())
 	}
 }
