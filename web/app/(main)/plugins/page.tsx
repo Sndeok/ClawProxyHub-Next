@@ -30,6 +30,7 @@ interface InstalledRow {
   icon?: string
   capabilities: string[] | null
   running: boolean
+  enabled?: boolean
 }
 
 interface SchemaProp {
@@ -190,12 +191,16 @@ const [marketLoading, setMarketLoading] = useState(true)
                 <div className="flex items-center gap-2">
                   <span className="text-[13.5px] font-medium">{p.label || p.name}</span>
                   <Badge>v{p.version || '-'}</Badge>
-                  <Badge tone={p.running ? 'success' : 'warning'}>{p.running ? '运行中' : '已停止'}</Badge>
+                  <Badge tone={p.running ? 'success' : 'warning'}>
+                    {p.running ? '运行中' : p.enabled === false ? '已停用（重启后保持）' : '已停止'}
+                  </Badge>
                   {(p.capabilities ?? []).slice(0, 4).map((c) => <Badge key={c}>{c}</Badge>)}
                 </div>
                 <div className="mt-0.5 text-[11.5px] text-muted-foreground">
                   {p.name} · {p.author || 'unknown'}
-                  {!p.running && ' · 已停止的插件不参与路由，也不会出现在账号页'}
+                  {!p.running && (p.enabled === false
+                    ? ' · 已手动停用：重启后仍保持停止，点「启动」恢复'
+                    : ' · 已停止的插件不参与路由，也不会出现在账号页')}
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">

@@ -104,8 +104,17 @@ func run() error {
 	plugins := plugin.NewManager(cfg.PluginDir, db)
 	if bins, err := plugins.Scan(); err == nil {
 		for _, bin := range bins {
-			if _, err := plugins.Start(ctx, bin); err != nil {
+			inst, err := plugins.Start(ctx, bin)
+			if err != nil {
 				fmt.Printf("[plugin] start failed: %v\n", err)
+				continue
+			}
+			// 尊重持久化的停用状态：管理页「停止」写 plugins.enabled=0，
+			// 重启（含容器重建）后该插件保持停用，直到在管理页点「启动」。
+			var rec model.Plugin
+			if err := db.Where("name = ?", inst.Name).First(&rec).Error; err == nil && !rec.Enabled {
+				plugins.Stop(inst.Name)
+				fmt.Printf("[plugin] %s 已停用（plugins.enabled=0），跳过启动\n", inst.Name)
 			}
 		}
 	}

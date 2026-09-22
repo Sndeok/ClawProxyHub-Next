@@ -23,6 +23,8 @@ type Plugin struct {
 	ProtocolVersion int32
 	ManifestJSON    string    `gorm:"column:manifest_json"`
 	SettingsJSON    string    `gorm:"column:settings_json;default:'{}'"`
+	// Enabled 持久化启停：管理页「停止」置 false，重启（含容器重建）后保持停止；
+	// 启动时 core 读它决定是否拉起插件（cmd/cph/main.go）。
 	Enabled         bool      `gorm:"default:true"`
 	InstalledAt     time.Time `gorm:"column:installed_at"`
 	UpdatedAt       time.Time `gorm:"column:updated_at"`

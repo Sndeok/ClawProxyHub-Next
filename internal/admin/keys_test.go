@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Sndeok/ClawProxyHub-Next/internal/model"
+	"github.com/Sndeok/ClawProxyHub-Next/internal/plugin"
 )
 
 // TestCreateRouteStrategyRegression 回归 GORM 零值陷阱：
@@ -90,5 +91,30 @@ func TestUpdateGroupRejectsStrategy(t *testing.T) {
 	}
 	if got.Name != "备用池" {
 		t.Fatalf("改名未生效：%q", got.Name)
+	}
+}
+
+// TestStopPluginPersistsDisabled 回归：停止插件要落库 enabled=false，
+// 否则重启（容器重建）后插件又会被拉起来，「停止」形同虚设。
+func TestStopPluginPersistsDisabled(t *testing.T) {
+	db := opsTestDB(t)
+	rec := model.Plugin{Name: "lobsterai", Version: "0.1.13", Author: "cph", ProtocolVersion: 1, ManifestJSON: "{}", Enabled: true}
+	if err := db.Create(&rec).Error; err != nil {
+		t.Fatal(err)
+	}
+	s := &Server{db: db, plugins: plugin.NewManager(t.TempDir(), db)}
+	req := httptest.NewRequest("POST", "/admin/plugins/lobsterai/stop", nil)
+	req.SetPathValue("name", "lobsterai")
+	w := httptest.NewRecorder()
+	s.stopPlugin(w, req)
+	if w.Code != 200 {
+		t.Fatalf("停止插件应返回 200，实际 %d body=%s", w.Code, w.Body.String())
+	}
+	var got model.Plugin
+	if err := db.First(&got, rec.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if got.Enabled {
+		t.Fatal("停止后 plugins.enabled 应为 false（重启后保持停止）")
 	}
 }

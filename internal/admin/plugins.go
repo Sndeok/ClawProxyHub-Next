@@ -97,6 +97,8 @@ func (s *Server) listInstalledPlugins(w http.ResponseWriter, r *http.Request) {
 		Icon         string   `json:"icon"`
 		Capabilities []string `json:"capabilities"`
 		Running      bool     `json:"running"`
+		// Enabled 持久化启停状态：false = 管理页主动停用（重启后仍保持停止）
+		Enabled bool `json:"enabled"`
 	}
 	var recs []model.Plugin
 	if err := s.db.Order("id").Find(&recs).Error; err != nil {
@@ -105,7 +107,7 @@ func (s *Server) listInstalledPlugins(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]installedView, 0, len(recs))
 	for _, rec := range recs {
-		v := installedView{ID: rec.ID, Name: rec.Name, Label: rec.Name, Version: rec.Version, Author: rec.Author}
+		v := installedView{ID: rec.ID, Name: rec.Name, Label: rec.Name, Version: rec.Version, Author: rec.Author, Enabled: rec.Enabled}
 		// 运行中：以实例 manifest 为准（DB 快照可能只有 name/author）
 		if inst, ok := s.plugins.Get(rec.Name); ok && inst.Manifest != nil {
 			m := inst.Manifest

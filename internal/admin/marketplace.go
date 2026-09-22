@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Sndeok/ClawProxyHub-Next/internal/model"
 	"github.com/Sndeok/ClawProxyHub-Next/internal/plugin"
 )
 
@@ -180,14 +181,19 @@ func (s *Server) installZipPath(w http.ResponseWriter, r *http.Request, zipPath 
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
 		return
 	}
-	s.db.Exec(`INSERT OR IGNORE INTO plugins (name, version, author, protocol_version, manifest_json) VALUES (?,?,?,?,?)`, name, "", "cph", 0, "{}")
+	// 安装/更新 = 显式启用：清掉持久化停用标记，与 InstallZip 已启动的实例保持一致
+	s.db.Exec(`INSERT INTO plugins (name, version, author, protocol_version, manifest_json, enabled) VALUES (?,?,?,?,?,1)
+		ON CONFLICT(name) DO UPDATE SET enabled = 1`, name, "", "cph", 0, "{}")
 	s.plugins.RefreshCatalog(r.Context())
 	writeJSON(w, http.StatusOK, map[string]interface{}{"installed": name})
 }
 
 // stopPlugin POST /admin/plugins/{name}/stop
+// 停用是持久的（plugins.enabled=0）：重启后保持停止，直到管理页点「启动」。
 func (s *Server) stopPlugin(w http.ResponseWriter, r *http.Request) {
-	s.plugins.Stop(r.PathValue("name"))
+	name := r.PathValue("name")
+	s.plugins.Stop(name)
+	s.db.Model(&model.Plugin{}).Where("name = ?", name).Update("enabled", false)
 	writeJSON(w, http.StatusOK, map[string]bool{"stopped": true})
 }
 
@@ -205,6 +211,8 @@ func (s *Server) startPlugin(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
 				return
 			}
+			// 解除持久化停用（与 stopPlugin 对称）
+			s.db.Model(&model.Plugin{}).Where("name = ?", name).Update("enabled", true)
 			s.plugins.RefreshCatalog(r.Context())
 			writeJSON(w, http.StatusOK, map[string]bool{"started": true})
 			return
