@@ -6,6 +6,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 
@@ -18,6 +20,28 @@ func setTemperature(req *pb.ChatRequest, t *float64) {
 	if t != nil {
 		req.Extra["temperature"] = strconv.FormatFloat(*t, 'g', -1, 64)
 	}
+}
+
+// maxLoggedBody 请求原文 / 上游返回的落库上限（超出截断并标注）。
+const maxLoggedBody = 8 << 10
+
+// ctxKeyRawBody 请求原文在 context 里传递的 key（parseBody 读体后写入，serve 组装日志时取）。
+type ctxKeyRawBody struct{}
+
+// clipBody 截断到 maxLoggedBody，并标注被截断的字节数。
+func clipBody(s string) string {
+	if len(s) <= maxLoggedBody {
+		return s
+	}
+	return s[:maxLoggedBody] + fmt.Sprintf("\n…[truncated %d bytes]", len(s)-maxLoggedBody)
+}
+
+// rawBodyOf 从请求上下文取原文（没有则空串）。
+func rawBodyOf(r *http.Request) string {
+	if v, ok := r.Context().Value(ctxKeyRawBody{}).(string); ok {
+		return v
+	}
+	return ""
 }
 
 func randHex(n int) string {

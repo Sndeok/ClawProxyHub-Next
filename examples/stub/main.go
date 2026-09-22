@@ -101,7 +101,11 @@ func (s *stubPlugin) Chat(req *pb.ChatRequest, stream pb.ClawPlugin_ChatServer) 
 		_ = stream.Send(&pb.StreamEvent{Event: &pb.StreamEvent_MessageStart{MessageStart: &pb.MessageStart{Model: req.Model}}})
 		_ = stream.Send(&pb.StreamEvent{Event: &pb.StreamEvent_ContentDelta{ContentDelta: &pb.ContentDelta{Text: "partial"}}})
 		return stream.Send(&pb.StreamEvent{Event: &pb.StreamEvent_TaskFailed{
-			TaskFailed: &pb.TaskFailed{Error: &pb.Error{Code: 500, Message: "upstream boom"}},
+			TaskFailed: &pb.TaskFailed{
+				Error: &pb.Error{Code: 500, Message: "upstream boom"},
+				Detail: "HTTP 500 upstream boom\n" +
+					`{"error":{"type":"internal_error","message":"stub upstream exploded","request_id":"req_demo_123"}}`,
+			},
 		}})
 	}
 	if s.host != nil {

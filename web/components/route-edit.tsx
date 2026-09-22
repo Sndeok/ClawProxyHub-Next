@@ -17,7 +17,8 @@ export interface GroupEntry {
 }
 
 export const STRATEGY_OPTIONS: [string, string][] = [
-  ['sticky', '会话粘性（推荐：同一会话固定账号，缓存命中高）'],
+  ['sticky_expiring', '会话粘性 + 过期积分优先（推荐：会话内固定账号，新会话先烧快过期积分）'],
+  ['sticky', '会话粘性（同一会话固定账号，缓存命中高）'],
   ['round_robin', '轮询'],
   ['random', '随机'],
   ['least_used', '最少使用'],
@@ -40,7 +41,7 @@ export function RouteEdit({
   onSaved: () => void | Promise<void>
 }) {
   const [name, setName] = useState('')
-  const [strategy, setStrategy] = useState('sticky')
+  const [strategy, setStrategy] = useState('sticky_expiring')
   const [entries, setEntries] = useState<GroupEntry[]>([emptyEntry()])
   const [timeoutSec, setTimeoutSec] = useState(0)
   const [foEnabled, setFoEnabled] = useState(false)
@@ -61,7 +62,7 @@ export function RouteEdit({
       .catch(() => setModels([]))
     if (route) {
       setName(route.Name)
-      setStrategy(route.Strategy || 'sticky')
+      setStrategy(route.Strategy || 'sticky_expiring')
       try {
         const parsed = JSON.parse(route.GroupsJSON) as GroupEntry[]
         setEntries(parsed.length ? parsed : [emptyEntry()])
@@ -76,7 +77,7 @@ export function RouteEdit({
       setFoModel(route.FailoverModel || '')
     } else {
       setName('')
-      setStrategy('sticky')
+      setStrategy('sticky_expiring')
       setEntries([emptyEntry(groups[0]?.id ?? 0)])
       setTimeoutSec(0)
       setFoEnabled(false)

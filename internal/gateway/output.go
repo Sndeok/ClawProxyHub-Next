@@ -89,6 +89,7 @@ func (s *Server) streamOut(w http.ResponseWriter, events chan *pb.StreamEvent, f
 			log.status = http.StatusBadGateway
 			log.errorType = "upstream_error"
 			log.errBrief = failed.TaskFailed.Error.GetMessage()
+			log.errorDetail = failedDetail(failed.TaskFailed)
 			// 按入口协议下发错误帧：Codex(responses) 认 response.failed、
 			// Anthropic SDK 认 error 事件、OpenAI SDK 认 error chunk。
 			// 少了它上游断流会被当成"正常结束"，表现为「复杂操作不回复」。
@@ -137,6 +138,7 @@ func (s *Server) nonStreamOut(w http.ResponseWriter, events chan *pb.StreamEvent
 			// 失败时响应尚未写出：返回码与摘要，恢复/降级决策归 serve 层
 			failCode = failed.TaskFailed.Error.GetCode()
 			brief = failed.TaskFailed.Error.GetMessage()
+			log.errorDetail = failedDetail(failed.TaskFailed)
 			return false
 		}
 		collectUsage(log, ev)
@@ -160,6 +162,17 @@ func (s *Server) nonStreamOut(w http.ResponseWriter, events chan *pb.StreamEvent
 }
 
 // collectUsage 从 MessageFinish 事件提取用量与结束原因（排查断流/工具调用时看它）。
+// failedDetail 失败事件的详细上游返回：插件没带 detail 时退回错误摘要。
+func failedDetail(tf *pb.TaskFailed) string {
+	if tf == nil {
+		return ""
+	}
+	if tf.Detail != "" {
+		return clipBody(tf.Detail)
+	}
+	return tf.Error.GetMessage()
+}
+
 func collectUsage(log *requestLogCtx, ev *pb.StreamEvent) {
 	if fin, ok := ev.Event.(*pb.StreamEvent_MessageFinish); ok && fin.MessageFinish != nil {
 		log.finishReason = fin.MessageFinish.FinishReason

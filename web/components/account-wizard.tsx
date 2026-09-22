@@ -301,7 +301,7 @@ export function AccountWizard({
       setNext(step)
       setStepForm({})
       if (step?.wait) {
-        if (step.url && step.action === 'open_url') window.open(step.url, '_blank')
+        // 授权链接只展示，不自动打开新窗口（用户自己点「打开授权页」）
         // 判定必须用刚拿到的 step：此时 React 还没重渲染，读取 memo 会得到上一轮的值
         if (shouldAutoPoll(currentMethod, step)) {
           pollCtx.current = { plugin: pluginName, method: methodId, state: step.state ?? '', auto: false }

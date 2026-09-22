@@ -2094,8 +2094,11 @@ func (x *MessageFinish) GetUsage() *Usage {
 }
 
 type TaskFailed struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Error         *Error                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Error *Error                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
+	// 完整上游返回（HTTP 状态行 + 响应体，插件侧截断到 8KB）。
+	// 核心落库 request_logs.error_detail，只在日志详情展示，不进摘要。
+	Detail        string `protobuf:"bytes,2,opt,name=detail,proto3" json:"detail,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2135,6 +2138,13 @@ func (x *TaskFailed) GetError() *Error {
 		return x.Error
 	}
 	return nil
+}
+
+func (x *TaskFailed) GetDetail() string {
+	if x != nil {
+		return x.Detail
+	}
+	return ""
 }
 
 type TaskCapability struct {
@@ -3019,10 +3029,11 @@ const file_sdk_proto_cph_proto_rawDesc = "" +
 	"\x15cache_creation_tokens\x18\x05 \x01(\x03R\x13cacheCreationTokens\"Y\n" +
 	"\rMessageFinish\x12#\n" +
 	"\rfinish_reason\x18\x01 \x01(\tR\ffinishReason\x12#\n" +
-	"\x05usage\x18\x02 \x01(\v2\r.cph.v1.UsageR\x05usage\"1\n" +
+	"\x05usage\x18\x02 \x01(\v2\r.cph.v1.UsageR\x05usage\"I\n" +
 	"\n" +
 	"TaskFailed\x12#\n" +
-	"\x05error\x18\x01 \x01(\v2\r.cph.v1.ErrorR\x05error\"\xf3\x01\n" +
+	"\x05error\x18\x01 \x01(\v2\r.cph.v1.ErrorR\x05error\x12\x16\n" +
+	"\x06detail\x18\x02 \x01(\tR\x06detail\"\xf3\x01\n" +
 	"\x0eTaskCapability\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x127\n" +
 	"\x05label\x18\x02 \x03(\v2!.cph.v1.TaskCapability.LabelEntryR\x05label\x12\x12\n" +

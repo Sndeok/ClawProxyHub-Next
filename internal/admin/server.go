@@ -116,6 +116,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/task-rules/run-all", s.auth(s.runAllTaskRules))
 	mux.HandleFunc("GET /admin/task-runs", s.auth(s.listTaskRuns))
 	mux.HandleFunc("GET /admin/logs", s.auth(s.listLogs))
+	mux.HandleFunc("GET /admin/logs/{id}/detail", s.auth(s.logDetail))
 	mux.HandleFunc("POST /admin/logs/cleanup", s.auth(s.logCleanup))
 	mux.HandleFunc("GET /admin/stats", s.auth(s.dashboardStats))
 	mux.HandleFunc("GET /admin/stats/quota", s.auth(s.dashboardQuota))

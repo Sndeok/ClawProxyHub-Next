@@ -264,6 +264,9 @@ message MessageFinish {
 
 message TaskFailed {
   Error error = 1;
+  // 完整上游返回（HTTP 状态行 + 响应体，插件侧截断到 8KB）。
+  // 核心落库 request_logs.error_detail，只在日志详情展示，不进摘要。
+  string detail = 2;
 }
 
 // ---------- 任务调度（核心管"何时"，插件管"做什么"） ----------

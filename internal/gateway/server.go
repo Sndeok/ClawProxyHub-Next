@@ -166,6 +166,8 @@ func (s *Server) parseBody(w http.ResponseWriter, r *http.Request, parse func([]
 		writeJSON(w, http.StatusBadRequest, errBody("invalid_request_error", err))
 		return nil, false
 	}
+	// 请求原文留档：排查上游 400（协议转换问题）时与上游返回对照着看最有用
+	*r = *r.WithContext(context.WithValue(r.Context(), ctxKeyRawBody{}, clipBody(string(body))))
 	return req, true
 }
 
@@ -285,13 +287,24 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, key *model.Key, r
 		if pluginName == "" {
 			pluginName, _ = s.plugins.ResolveModel(req.Model)
 		}
-	} else if pn, ok := s.plugins.ResolveModel(req.Model); ok {
-		pluginName = pn
 	} else {
-		// 不是路由名也不是插件真实模型名
-		writeJSON(w, http.StatusNotFound, errBody("invalid_request_error",
-			fmt.Errorf("model %q not found", req.Model)))
-		return
+		// 非路由模型：插件目录判插件 + 账号目录直连（路由只做改名/映射，删路由不影响可用性）
+		pn, known := s.plugins.ResolveModel(req.Model)
+		if direct := s.router.ResolveDirect(req.Model, pn); direct != nil {
+			resolved = direct
+			account = direct.Account
+			pluginName = direct.PluginName
+			if pluginName == "" {
+				pluginName = pn
+			}
+			groupID = direct.GroupID
+		} else if known {
+			pluginName = pn // 账号目录没同步过：保持旧行为（无凭据直调）
+		} else {
+			writeJSON(w, http.StatusNotFound, errBody("invalid_request_error",
+				fmt.Errorf("model %q not found (no route and no account declares it)", req.Model)))
+			return
+		}
 	}
 	// 端点能力：任意协议入口一律归一化为统一信封后投递（自动协议转换）。
 	// 插件声明的 endpoints 仅是方言描述：不在声明内时记运营日志，供插件侧
@@ -319,11 +332,15 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request, key *model.Key, r
 	// 注意：req.Model 已替换为真实模型名，重试解析路由需用原始对外名
 	log := &requestLogCtx{start: start, key: key, account: account, requestedModel: origModel, model: req.Model,
 		protocol: protocol, stream: req.Stream,
-		clientIP: clientIP(r), userAgent: util.TruncStr(r.UserAgent(), 250)}
+		clientIP: clientIP(r), userAgent: util.TruncStr(r.UserAgent(), 250),
+		requestBody: rawBodyOf(r)}
 	var route *model.Route
-	if resolved != nil {
+	if resolved != nil && resolved.Route != nil { // 直连模型没有路由，只有分组
 		route = resolved.Route
 		log.routeID = &resolved.Route.ID
+	}
+	if resolved != nil && resolved.GroupID > 0 {
+		groupID = resolved.GroupID
 		log.groupID = &resolved.GroupID
 	}
 	failoverUsed := false
@@ -595,6 +612,8 @@ type requestLogCtx struct {
 	clientIP       string
 	userAgent      string
 	errBrief       string
+	errorDetail    string // 完整上游返回（失败时）
+	requestBody    string // 客户端请求原文（截断）
 }
 
 // write 落库 request_logs。
@@ -620,7 +639,9 @@ func (c *requestLogCtx) write(db *gorm.DB) {
 		CachedTokens: int32(c.cached), CacheCreationTokens: int32(c.cacheCreation),
 		CreditUsed: c.credit, LatencyMs: int32(latency.Milliseconds()),
 		FirstTokenMs: c.firstTokenMs, ClientIP: c.clientIP, UserAgent: c.userAgent,
-		ErrorBrief: c.errBrief,
+		ErrorBrief:  c.errBrief,
+		ErrorDetail: c.errorDetail,
+		RequestBody: c.requestBody,
 	}
 	if c.key != nil {
 		rl.KeyID = &c.key.ID

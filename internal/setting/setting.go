@@ -26,6 +26,10 @@ const KeyMarketplaceURL = "network.marketplace_url"
 // 只对 GitHub 域名生效；本项是传输层代理，支持 socks5 / socks5h / http(s)。
 const KeyMarketProxy = "network.market_proxy"
 
+// KeyModelCatalog 模型中心目录快照（JSON：{updated_at, models:[...]}）。
+// 手工导入的目录与账号上报的模型在读取时合并，不单独建表。
+const KeyModelCatalog = "models.catalog_json"
+
 // KeyLogRetentionDays 调用日志保留天数（0 = 保留全部，不自动清理）。
 const KeyLogRetentionDays = "logs.retention_days"
 

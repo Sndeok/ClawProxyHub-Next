@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowDown, ArrowUp, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Copy, RefreshCw, Trash2 } from 'lucide-react'
 import { Badge, statusTone } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -13,6 +13,39 @@ import { fmtClock, fmtCompact, fmtMs, fmtTime, hitRate } from '@/lib/utils'
 
 const PAGE_SIZE = 20
 
+// LogBlock 详情里的大段文本块：标题 + 说明 + 复制 + 等宽滚动区；空文本不渲染。
+function LogBlock({
+  title,
+  hint,
+  text,
+  onCopy,
+}: {
+  title: string
+  hint: string
+  text: string
+  onCopy: (text: string, what: string) => void
+}) {
+  if (!text) return null
+  return (
+    <div className="mt-4">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-[13px] font-medium">{title}</span>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-[12px] text-muted-foreground underline-offset-2 hover:underline"
+          onClick={() => void onCopy(text, title)}
+        >
+          <Copy className="h-3 w-3" /> 复制
+        </button>
+      </div>
+      <p className="mb-1 text-[11.5px] text-muted-foreground">{hint}</p>
+      <pre className="max-h-[320px] overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-[12px]">
+        {text}
+      </pre>
+    </div>
+  )
+}
+
 export default function LogsPage() {
   const [page, setPage] = useState(1)
   const [data, setData] = useState<LogPage | null>(null)
@@ -22,6 +55,8 @@ export default function LogsPage() {
   const [model, setModel] = useState('')
   const [keyword, setKeyword] = useState('')
   const [detail, setDetail] = useState<RequestLog | null>(null)
+  const [detailRaw, setDetailRaw] = useState<{ request_body?: string; error_detail?: string }>({})
+  const [copyHint, setCopyHint] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -40,6 +75,28 @@ export default function LogsPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // 请求原文与完整上游返回体积大，只在打开详情时按需拉取
+  const openDetail = useCallback(async (r: RequestLog) => {
+    setDetail(r)
+    setDetailRaw({})
+    try {
+      const d = await api.get<{ request_body?: string; error_detail?: string }>('/admin/logs/' + r.ID + '/detail')
+      setDetailRaw({ request_body: d.request_body ?? '', error_detail: d.error_detail ?? '' })
+    } catch {
+      // 详情拉取失败不影响基础字段展示
+    }
+  }, [])
+
+  async function copyText(text: string, what: string) {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopyHint(what + '已复制')
+    } catch {
+      setCopyHint('复制失败，请手动选择文本')
+    }
+    setTimeout(() => setCopyHint(''), 1800)
+  }
 
   const logs = data?.logs ?? []
   const total = data?.total ?? 0
@@ -116,7 +173,7 @@ export default function LogsPage() {
           </thead>
           <tbody>
             {logs.map((r) => (
-              <Tr key={r.ID} className="cursor-pointer" onClick={() => setDetail(r)}>
+              <Tr key={r.ID} className="cursor-pointer" onClick={() => void openDetail(r)}>
                 <Td className="tnum whitespace-nowrap">
                   <span className="hidden md:inline">{fmtTime(r.CreatedAt)}</span>
                   <span className="md:hidden">{fmtClock(r.CreatedAt)}</span>
@@ -237,11 +294,26 @@ export default function LogsPage() {
                 </div>
               ))}
             </dl>
-            {detail.ErrorBrief && (
-              <pre className="mt-4 max-h-[260px] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-[12px]">
-                {detail.ErrorBrief}
-              </pre>
-            )}
+            {copyHint && <p className="mt-3 text-[12px] text-muted-foreground">{copyHint}</p>}
+
+            <LogBlock
+              title="错误摘要"
+              hint="列表与响应里回给客户端的那句话"
+              text={detail.ErrorBrief || ''}
+              onCopy={copyText}
+            />
+            <LogBlock
+              title="完整上游返回"
+              hint="插件透传的上游状态行 + 响应体（超过 8KB 截断）；400/500 排查看这里"
+              text={detailRaw.error_detail || ''}
+              onCopy={copyText}
+            />
+            <LogBlock
+              title="请求原文"
+              hint="客户端发来的原始 JSON（超过 8KB 截断），可与上游返回对照看协议转换"
+              text={detailRaw.request_body || ''}
+              onCopy={copyText}
+            />
           </div>
         </div>
       )}

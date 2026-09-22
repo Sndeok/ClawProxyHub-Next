@@ -14,6 +14,7 @@ const STRATEGY: Record<string, string> = {
   random: '随机',
   least_used: '最少使用',
   sticky: '会话粘性',
+  sticky_expiring: '粘性 + 过期优先',
   expiring: '过期优先',
 }
 
@@ -142,7 +143,7 @@ export default function RoutesPage() {
                   </div>
                 </Td>
                 <Td>
-                  <Badge tone={r.Strategy === 'sticky' ? 'success' : 'neutral'}>{STRATEGY[r.Strategy] ?? r.Strategy}</Badge>
+                  <Badge tone={r.Strategy === 'sticky_expiring' || r.Strategy === 'sticky' ? 'success' : 'neutral'}>{STRATEGY[r.Strategy] ?? r.Strategy}</Badge>
                 </Td>
                 <Td className="hidden md:table-cell">
                   <div className="flex flex-wrap gap-1">

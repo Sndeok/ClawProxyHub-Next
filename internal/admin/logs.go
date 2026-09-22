@@ -184,6 +184,26 @@ func (s *Server) listLogs(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// logDetail GET /admin/logs/{id}/detail —— 单条日志详情：
+// 列表里不含请求原文与上游返回（体积大），只有打开详情时才取。
+func (s *Server) logDetail(w http.ResponseWriter, r *http.Request) {
+	id := parseInt(r.PathValue("id"))
+	var lg model.RequestLog
+	if err := s.db.First(&lg, id).Error; err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+	views := s.logViews([]model.RequestLog{lg})
+	out := map[string]interface{}{
+		"request_body": lg.RequestBody,
+		"error_detail": lg.ErrorDetail,
+	}
+	if len(views) > 0 {
+		out["log"] = views[0]
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
 // logView 日志行视图：附加密钥名与账号名（原始日志只存 id）。
 type logView struct {
 	model.RequestLog

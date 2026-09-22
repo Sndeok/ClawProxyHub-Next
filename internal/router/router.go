@@ -133,7 +133,7 @@ func (r *Router) Resolve(key *model.Key, req *pb.ChatRequest) (*Resolved, error)
 
 	// 粘性优先：指纹命中且账号可用则复用
 	fp := Fingerprint(req)
-	if route.Strategy == "sticky" {
+	if route.Strategy == "sticky" || route.Strategy == "sticky_expiring" {
 		if res := r.lookupSticky(fp, route, entries); res != nil {
 			r.markUsed(res.Account.ID)
 			return res, nil
@@ -149,13 +149,13 @@ func (r *Router) Resolve(key *model.Key, req *pb.ChatRequest) (*Resolved, error)
 		acct = r.byRandom(entry.GroupID)
 	case "least_used":
 		acct = r.byLeastUsed(entry.GroupID)
-	case "expiring":
+	case "expiring", "sticky_expiring":
 		acct = r.byExpiringFirst(entry.GroupID)
 	default: // round_robin / sticky（未命中退化为轮询）
 		acct = r.byRoundRobin(route.ID, entry.GroupID)
 	}
 
-	if acct != nil && route.Strategy == "sticky" {
+	if acct != nil && (route.Strategy == "sticky" || route.Strategy == "sticky_expiring") {
 		r.saveSticky(fp, entry, acct.ID)
 	}
 	if acct != nil {
@@ -177,7 +177,7 @@ func (r *Router) PickFailover(route *model.Route) *Resolved {
 		acct = r.byRandom(gid)
 	case "least_used":
 		acct = r.byLeastUsed(gid)
-	case "expiring":
+	case "expiring", "sticky_expiring":
 		acct = r.byExpiringFirst(gid)
 	default:
 		acct = r.byRoundRobin(route.ID, gid)

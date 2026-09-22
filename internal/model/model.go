@@ -95,9 +95,10 @@ func (KeyRoute) TableName() string { return "key_routes" }
 // Route 路由：对外模型名 + 分组（含真实模型映射）权重表。
 // 路由名即客户端请求的 model 字段。
 type Route struct {
-	ID         int64  `gorm:"primaryKey;autoIncrement"`
-	Name       string `gorm:"uniqueIndex;size:128"`        // 对外模型名
-	Strategy   string `gorm:"size:16;default:round_robin"` // round_robin/random/least_used/sticky
+	ID   int64  `gorm:"primaryKey;autoIncrement"`
+	Name string `gorm:"uniqueIndex;size:128"` // 对外模型名
+	// round_robin / random / least_used / sticky / sticky_expiring（粘性 + 快过期积分优先）/ expiring
+	Strategy   string `gorm:"size:16;default:round_robin"`
 	GroupsJSON string `gorm:"column:groups_json;default:'[]'"`
 	// 首事件超时（秒），0 = 跟随全局设置
 	TimeoutSeconds int32 `gorm:"column:timeout_seconds;default:0"`
@@ -205,12 +206,15 @@ type RequestLog struct {
 	FirstTokenMs   int32  `gorm:"column:first_token_ms;default:0"` // 首字耗时
 	CachedTokens   int32  `gorm:"column:cached_tokens;default:0"`  // 缓存命中（读取）token
 	// 缓存写入 token（Anthropic cache_creation_input_tokens / OpenAI 系 cache_write_tokens）
-	CacheCreationTokens int32     `gorm:"column:cache_creation_tokens;default:0"`
-	CreditUsed          float64   `gorm:"column:credit_used;default:0"` // 本次请求消耗积分（插件上报，0 = 未知）
-	ClientIP            string    `gorm:"column:client_ip;size:64;default:''"`
-	UserAgent           string    `gorm:"column:user_agent;size:256;default:''"`
-	ErrorBrief          string    `gorm:"column:error_brief;size:512;default:''"`
-	CreatedAt           time.Time `gorm:"index"`
+	CacheCreationTokens int32   `gorm:"column:cache_creation_tokens;default:0"`
+	CreditUsed          float64 `gorm:"column:credit_used;default:0"` // 本次请求消耗积分（插件上报，0 = 未知）
+	ClientIP            string  `gorm:"column:client_ip;size:64;default:''"`
+	UserAgent           string  `gorm:"column:user_agent;size:256;default:''"`
+	ErrorBrief          string  `gorm:"column:error_brief;size:512;default:''"`
+	// 完整上游返回 / 客户端请求原文：体积大，只在日志详情接口返回（json:"-" 不进列表）。
+	ErrorDetail string    `gorm:"column:error_detail;default:''" json:"-"`
+	RequestBody string    `gorm:"column:request_body;default:''" json:"-"`
+	CreatedAt   time.Time `gorm:"index"`
 }
 
 func (RequestLog) TableName() string { return "request_logs" }
