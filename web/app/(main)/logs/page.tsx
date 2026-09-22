@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowDown, ArrowUp, Copy, RefreshCw, Trash2 } from 'lucide-react'
+import { Field, Modal } from '@/components/ui/modal'
 import { Badge, statusTone } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -59,6 +60,8 @@ export default function LogsPage() {
   const [copyHint, setCopyHint] = useState('')
   const [exporting, setExporting] = useState(false)
   const [exportHint, setExportHint] = useState('')
+  const [cleanupOpen, setCleanupOpen] = useState(false)
+  const [cleaning, setCleaning] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -128,6 +131,24 @@ export default function LogsPage() {
     }
   }
 
+  // 手动清理：days>0 清理 N 天前，all=true 清空（服务端只删 request_logs）
+  async function cleanup(payload: { days?: number; all?: boolean }) {
+    if (payload.all && !window.confirm('确定清空全部调用日志？该操作不可恢复。')) return
+    setCleaning(true)
+    setExportHint('')
+    try {
+      const r = await api.post<{ deleted: number }>('/admin/logs/cleanup', payload)
+      setCleanupOpen(false)
+      setPage(1)
+      await load()
+      setExportHint('已清理 ' + r.deleted + ' 条日志')
+    } catch (e) {
+      setExportHint((e as Error).message)
+    } finally {
+      setCleaning(false)
+    }
+  }
+
   const logs = data?.logs ?? []
   const total = data?.total ?? 0
   // 本页汇总：Σ Token（输入+输出）与缓存命中率（命中是输入的子集）
@@ -179,6 +200,9 @@ export default function LogsPage() {
           </Button>
           <Button variant="outline" size="sm" onClick={() => void exportCSV()} disabled={exporting}>
             {exporting ? '导出中…' : '导出 CSV'}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setCleanupOpen(true)}>
+            <Trash2 className="h-3.5 w-3.5" /> 清理
           </Button>
           {exportHint && <span className="text-[12px] text-[var(--destructive)]">{exportHint}</span>}
           <div className="ml-auto flex items-center gap-3 text-[12px] text-muted-foreground">
@@ -283,6 +307,30 @@ export default function LogsPage() {
           </Button>
         </div>
       </div>
+
+      <Modal
+        open={cleanupOpen}
+        title="清理调用日志"
+        onClose={() => setCleanupOpen(false)}
+        footer={<Button variant="outline" onClick={() => setCleanupOpen(false)}>取消</Button>}
+      >
+        <Field label="清理范围" hint="只删调用日志，不影响账号 / 密钥 / 路由配置">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" disabled={cleaning} onClick={() => void cleanup({ days: 7 })}>
+              清理 7 天前
+            </Button>
+            <Button variant="outline" disabled={cleaning} onClick={() => void cleanup({ days: 30 })}>
+              清理 30 天前
+            </Button>
+            <Button variant="destructive" disabled={cleaning} onClick={() => void cleanup({ all: true })}>
+              清空全部
+            </Button>
+          </div>
+        </Field>
+        <p className="text-[12px] text-muted-foreground">
+          自动清理由「设置 → 日志保留（天）」控制，这里只做一次性手动清理。
+        </p>
+      </Modal>
 
       {detail && (
         <div

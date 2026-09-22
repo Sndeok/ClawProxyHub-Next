@@ -13,10 +13,10 @@ import (
 
 // remoteVersionURL 远端版本清单（仓库根 version.json，走 GitHub 加速前缀）。
 // 二开：指向自建核心仓库。
-const remoteVersionURL = "https://raw.githubusercontent.com/Sndeok/ClawProxyHub/main/version.json"
+const remoteVersionURL = "https://raw.githubusercontent.com/Sndeok/ClawProxyHub-Next/main/version.json"
 
 // releaseURL 版本发布页（前端「有更新」跳转）。
-const releaseURL = "https://github.com/Sndeok/ClawProxyHub/releases"
+const releaseURL = "https://github.com/Sndeok/ClawProxyHub-Next/releases"
 
 // remoteManifest 远端 version.json 结构。changelog 是可选字段，兼容旧版只含
 // version/release_url 的清单。

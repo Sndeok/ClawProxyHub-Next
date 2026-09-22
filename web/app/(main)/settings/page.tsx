@@ -30,6 +30,9 @@ export default function SettingsPage() {
   const [s, setS] = useState<Settings | null>(null)
   const [notice, setNotice] = useState('')
   const [saving, setSaving] = useState('')
+  const [testingMarket, setTestingMarket] = useState(false)
+  const [marketHint, setMarketHint] = useState('')
+  const [version, setVersion] = useState<{ version?: string; latest?: string; update_available?: boolean; release_url?: string } | null>(null)
   const [pw, setPw] = useState({ p1: '', p2: '' })
   // 出站标识：按插件配置
   const [plugins, setPlugins] = useState<PluginInfo[]>([])
@@ -37,6 +40,27 @@ export default function SettingsPage() {
   const [outSchema, setOutSchema] = useState<Record<string, SchemaProp>>({})
   const [outValues, setOutValues] = useState<Record<string, string>>({})
   const OUT_KEYS = ['user_agent', 'client_name', 'client_version', 'cli_version'] as const
+
+  // 市场连通性：用当前表单值测（不落库），失败信息原样展示
+  async function testMarket() {
+    setTestingMarket(true)
+    setMarketHint('')
+    try {
+      const r = await api.post<{ ok: boolean; plugins?: number; latency_ms?: number; error?: string }>(
+        '/admin/settings/test-market',
+        { marketplace_url: (s?.marketplace_url ?? '').trim(), market_proxy: (s?.market_proxy ?? '').trim() },
+      )
+      if (r.ok) {
+        setMarketHint('连通正常：' + (r.plugins ?? 0) + ' 个插件' + (r.latency_ms ? '，' + r.latency_ms + 'ms' : ''))
+      } else {
+        setMarketHint('失败：' + (r.error || '未知错误'))
+      }
+    } catch (e) {
+      setMarketHint((e as Error).message)
+    } finally {
+      setTestingMarket(false)
+    }
+  }
 
   const load = useCallback(async () => {
     const r = await api.get<{ settings: Settings }>('/admin/settings')
@@ -46,7 +70,13 @@ export default function SettingsPage() {
     if (!pluginName && p.plugins?.length) setPluginName(p.plugins[0].name)
   }, [pluginName])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+    api
+      .get<{ version?: string; latest?: string; update_available?: boolean; release_url?: string }>('/admin/version')
+      .then(setVersion)
+      .catch(() => void 0)
+  }, [load])
 
   const loadPluginSettings = useCallback(async (name: string) => {
     if (!name) return
@@ -151,9 +181,29 @@ export default function SettingsPage() {
           <Field label="GitHub 加速代理" hint="仅对 GitHub 域名做 URL 前缀改写（ghproxy 风格），与市场代理相互独立">
             <Input value={s.github_proxy} onChange={(e) => setS({ ...s, github_proxy: e.target.value })} placeholder="https://gh-proxy.com" />
           </Field>
-          <Button onClick={() => save('net', { marketplace_url: s.marketplace_url.trim(), market_proxy: s.market_proxy.trim(), github_proxy: s.github_proxy.trim() })} disabled={saving === 'net'}>
-            <Save className="h-3.5 w-3.5" /> 保存
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={() => save('net', { marketplace_url: s.marketplace_url.trim(), market_proxy: s.market_proxy.trim(), github_proxy: s.github_proxy.trim() })} disabled={saving === 'net'}>
+              <Save className="h-3.5 w-3.5" /> 保存
+            </Button>
+            <Button variant="outline" onClick={() => void testMarket()} disabled={testingMarket}>
+              {testingMarket ? '测试中…' : '测试连通性'}
+            </Button>
+            {marketHint && <span className="text-[12px] text-muted-foreground">{marketHint}</span>}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-3 text-[12.5px] text-muted-foreground">
+            <span>核心版本 v{version?.version || '-'}</span>
+            {version?.update_available && (
+              <a
+                className="text-[var(--warning)] underline underline-offset-2"
+                href={version.release_url || 'https://github.com/Sndeok/ClawProxyHub-Next/releases'}
+                target="_blank"
+                rel="noreferrer"
+              >
+                有新版本 v{version.latest}，查看更新
+              </a>
+            )}
+          </div>
         </CardContent>
       </Card>
 

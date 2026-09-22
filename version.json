@@ -1,0 +1,32 @@
+{
+  "version": "1.1.0",
+  "release_url": "https://github.com/Sndeok/ClawProxyHub-Next/releases/tag/v1.1.0",
+  "changelog": {
+    "title": {
+      "zh": "v1.1.0 — 协议兼容 · 可观测 · 模型中心",
+      "en": "v1.1.0 — protocol fixes, observability, model center"
+    },
+    "items": [
+      {
+        "zh": "账号模型默认可直连：对外模型 = 路由名 ∪ 账号目录模型，路由只是改名层",
+        "en": "Direct model routing: public models = routes ∪ account catalogs"
+      },
+      {
+        "zh": "日志详情新增「完整上游返回」与「请求原文」，并支持 CSV 导出",
+        "en": "Log detail: full upstream response + raw request body, CSV export"
+      },
+      {
+        "zh": "模型中心：系列 / 倍率 / 上下文 / 最大输出 / 推理档位",
+        "en": "Model center: series / credits / context / max output / reasoning efforts"
+      },
+      {
+        "zh": "新增会话粘性 + 过期积分优先策略 sticky_expiring",
+        "en": "New sticky_expiring routing strategy"
+      },
+      {
+        "zh": "账号详情与在线测试、路由/账号编辑弹窗、移动端适配",
+        "en": "Account detail & online test, edit dialogs, mobile layout"
+      }
+    ]
+  }
+}
