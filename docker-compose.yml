@@ -11,4 +11,5 @@ services:
       CPH_ADMIN_PASSWORD: ${CPH_ADMIN_PASSWORD:-}
       TZ: Asia/Shanghai
     volumes:
-      - ./data:/data
+      # 数据目录：SQLite / 插件 / 凭据密钥都在这里，务必备份
+      - ./data:/app/data

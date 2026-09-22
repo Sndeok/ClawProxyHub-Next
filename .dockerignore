@@ -1,0 +1,13 @@
+.git
+.idea
+.vscode
+data
+data-test
+web-next/node_modules
+web-next/.next
+web-next/out
+web/dist
+*.exe
+*.log
+.env
+.env.local
