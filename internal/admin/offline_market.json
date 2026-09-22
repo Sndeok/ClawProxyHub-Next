@@ -1,15 +1,15 @@
 [
   {
     "name": "cline",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "author": "cph",
     "label": {
       "en": "Cline",
       "zh": "Cline"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/cline-v0.1.1/cline-0.1.1.cphplugin",
-    "sha256": "31aacc3cf502f7636b8fa8278766dd129a0aab288355e5dd210760daa7baebb3"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/cline-v0.1.2/cline-0.1.2.cphplugin",
+    "sha256": "0a95142be4b144fa65ebdf9a4989532b53630f330f4eb24f128c29f68294ba55"
   },
   {
     "name": "lobsterai",
@@ -25,27 +25,27 @@
   },
   {
     "name": "qoder",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "author": "cph",
     "label": {
       "en": "Qoder",
       "zh": "Qoder"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoder-v0.1.0/qoder-0.1.0.cphplugin",
-    "sha256": "5c616531770410ddfce0fec55a0b289bdcdde9e4576f2f8bac73ecd60bb058b8"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoder-v0.1.1/qoder-0.1.1.cphplugin",
+    "sha256": "ac299b2350b72053bda390f6e53b250337d73b38253dbe0433775ca9dbe6a490"
   },
   {
     "name": "qoderwork",
-    "version": "0.1.1",
+    "version": "0.1.2",
     "author": "cph",
     "label": {
       "en": "QoderWork",
       "zh": "QoderWork"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoderwork-v0.1.1/qoderwork-0.1.1.cphplugin",
-    "sha256": "26398ddbcdb581d38d53992c0908bbc21acce5157af8b98a8edcaca6ae742d75"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/qoderwork-v0.1.2/qoderwork-0.1.2.cphplugin",
+    "sha256": "f7b31963a4ab0fc26f7bcad45f3e0aeae9a855298c38064ce16a38447ba4bd05"
   },
   {
     "name": "workbuddy",
