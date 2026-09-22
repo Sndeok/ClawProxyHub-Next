@@ -1,15 +1,15 @@
 [
   {
     "name": "lobsterai",
-    "version": "0.1.12",
+    "version": "0.1.13",
     "author": "cph",
     "label": {
       "en": "LobsterAI",
       "zh": "LobsterAI"
     },
     "published_at": "2026-09-22",
-    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/lobsterai-v0.1.12/lobsterai-0.1.12.cphplugin",
-    "sha256": "3e5bbe3e0157d7502e0ceb82035e5545cdc77f2f7baa4dafd22e8a77785cdfdb"
+    "download_url": "https://github.com/Sndeok/ClawProxyHubPlugins/releases/download/lobsterai-v0.1.13/lobsterai-0.1.13.cphplugin",
+    "sha256": "7790d6d2db3c97d2c06f7c607efe5619cc790a5e19731fc6a51b742e767c379a"
   },
   {
     "name": "workbuddy",
