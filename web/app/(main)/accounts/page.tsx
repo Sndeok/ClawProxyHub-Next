@@ -1,7 +1,9 @@
 'use client'
 
+import Link from 'next/link'
 import { useCallback, useEffect, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
+import { AccountWizard } from '@/components/account-wizard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Table, TableShell, Td, Th, Tr } from '@/components/ui/table'
@@ -14,6 +16,7 @@ export default function AccountsPage() {
   const [groups, setGroups] = useState<GroupInfo[]>([])
   const [plugins, setPlugins] = useState<PluginInfo[]>([])
   const [refreshing, setRefreshing] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -31,6 +34,11 @@ export default function AccountsPage() {
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  const loadGroups = useCallback(async () => {
+    const g = await api.get<{ groups: GroupInfo[] }>('/admin/groups')
+    setGroups(g.groups ?? [])
   }, [])
 
   useEffect(() => {
@@ -51,6 +59,45 @@ export default function AccountsPage() {
     }
   }
 
+  async function togglePause(a: Account) {
+    setNotice('')
+    try {
+      if (a.status === 'paused') {
+        await api.post(`/admin/accounts/${a.id}/resume`)
+        setNotice(`已启用 ${a.display_name || `#${a.id}`}`)
+      } else {
+        await api.post(`/admin/accounts/${a.id}/pause`)
+        setNotice(`已停用 ${a.display_name || `#${a.id}`}（不会参与路由选号）`)
+      }
+      await load()
+    } catch (e) {
+      setNotice((e as Error).message)
+    }
+  }
+
+  async function refreshOne(a: Account) {
+    setNotice('')
+    try {
+      await api.post(`/admin/accounts/${a.id}/refresh`)
+      await load()
+      setNotice(`已刷新 ${a.display_name || `#${a.id}`}`)
+    } catch (e) {
+      setNotice((e as Error).message)
+    }
+  }
+
+  async function remove(a: Account) {
+    const label = a.display_name || `#${a.id}`
+    if (!window.confirm(`确定删除账号「${label}」？该账号的登录凭据会被移除，且无法恢复。`)) return
+    try {
+      await api.del(`/admin/accounts/${a.id}`)
+      await load()
+      setNotice(`已删除 ${label}`)
+    } catch (e) {
+      setNotice((e as Error).message)
+    }
+  }
+
   const pluginLabel = (id: number) => plugins.find((p) => p.id === id)?.label || `#${id}`
   const groupName = (id: number) => groups.find((g) => g.id === id)?.name || `#${id}`
   const expiryLabel = (a: Account) => {
@@ -64,12 +111,17 @@ export default function AccountsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-end gap-2">
-        {notice && <span className="text-[12.5px] text-muted-foreground">{notice}</span>}
-        <Button variant="outline" onClick={refreshAll} disabled={refreshing || accounts.length === 0}>
-          <RefreshCw className={refreshing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-          一键刷新
+      <div className="flex items-center justify-between gap-2">
+        <Button onClick={() => setAddOpen(true)} disabled={plugins.length === 0}>
+          <Plus className="h-3.5 w-3.5" /> 添加账号
         </Button>
+        <div className="flex items-center gap-2">
+          {notice && <span className="text-[12.5px] text-muted-foreground">{notice}</span>}
+          <Button variant="outline" onClick={refreshAll} disabled={refreshing || accounts.length === 0}>
+            <RefreshCw className={refreshing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+            一键刷新
+          </Button>
+        </div>
       </div>
 
       <TableShell>
@@ -84,6 +136,7 @@ export default function AccountsPage() {
               <Th className="text-right">今日积分</Th>
               <Th>积分到期</Th>
               <Th>状态</Th>
+              <Th className="text-right">操作</Th>
             </tr>
           </thead>
           <tbody>
@@ -114,24 +167,56 @@ export default function AccountsPage() {
                     '-'
                   )}
                 </Td>
-                <Td className={a.credits?.expiring ? 'text-[var(--warning)]' : 'text-muted-foreground'}>
-                  {expiryLabel(a)}
-                </Td>
+                <Td className={a.credits?.expiring ? 'text-[var(--warning)]' : 'text-muted-foreground'}>{expiryLabel(a)}</Td>
                 <Td>
-                  <Badge tone={a.status === 'active' ? 'success' : a.status === 'expired' ? 'danger' : 'neutral'}>
-                    {a.status === 'active' ? '正常' : a.status === 'expired' ? '已过期' : a.status}
+                  <Badge tone={a.status === 'active' ? 'success' : a.status === 'expired' ? 'danger' : a.status === 'paused' ? 'warning' : 'neutral'}>
+                    {a.status === 'active' ? '正常' : a.status === 'expired' ? '已过期' : a.status === 'paused' ? '已停用' : a.status}
                   </Badge>
+                </Td>
+                <Td className="whitespace-nowrap text-right">
+                  <div className="flex items-center justify-end gap-3 text-[12.5px]">
+                    <button className="underline-offset-2 hover:underline" onClick={() => void refreshOne(a)}>
+                      刷新
+                    </button>
+                    <button className="underline-offset-2 hover:underline" onClick={() => void togglePause(a)}>
+                      {a.status === 'paused' ? '启用' : '停用'}
+                    </button>
+                    <button className="text-[var(--destructive)] underline-offset-2 hover:underline" onClick={() => void remove(a)}>
+                      删除
+                    </button>
+                  </div>
                 </Td>
               </Tr>
             ))}
             {!loading && accounts.length === 0 && (
               <Tr>
-                <Td colSpan={8} className="py-10 text-center text-muted-foreground">还没有账号，先去插件页安装插件</Td>
+                <Td colSpan={9} className="py-10 text-center text-muted-foreground">
+                  {plugins.length === 0 ? (
+                    <span>
+                      还没有可用插件，先到{' '}
+                      <Link href="/plugins" className="underline underline-offset-2">
+                        插件页
+                      </Link>{' '}
+                      安装并启动
+                    </span>
+                  ) : (
+                    <span>还没有账号：点左上角「添加账号」，用手机验证码 / 凭据文件 / 浏览器授权登录上游</span>
+                  )}
+                </Td>
               </Tr>
             )}
           </tbody>
         </Table>
       </TableShell>
+
+      <AccountWizard
+        open={addOpen}
+        plugins={plugins}
+        groups={groups}
+        onClose={() => setAddOpen(false)}
+        onFinished={load}
+        onGroupsChanged={loadGroups}
+      />
     </div>
   )
 }

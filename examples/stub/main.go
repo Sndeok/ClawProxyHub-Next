@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -18,6 +19,9 @@ func main() { sdk.Serve(&stubPlugin{}) }
 type stubPlugin struct {
 	pb.UnimplementedClawPluginServer
 	host *sdk.Host
+
+	mu         sync.Mutex
+	oauthPolls int // oauth_auto：模拟插件侧轮询上游的次数
 }
 
 // SetHost 接收核心注入的宿主回调。
@@ -61,6 +65,12 @@ func (s *stubPlugin) Handshake(ctx context.Context, req *pb.HandshakeRequest) (*
 					Id: "oauth", Label: map[string]string{"zh": "浏览器登录", "en": "Browser OAuth"},
 					Capabilities: []string{"refreshable", "profile"},
 					Fields:       []*pb.AuthField{},
+				},
+				{
+					// 对齐 workbuddy oauth：插件侧轮询上游，前端只轮询不显示输入框
+					Id: "oauth_auto", Label: map[string]string{"zh": "浏览器登录（自动轮询）", "en": "Browser OAuth (auto poll)"},
+					Capabilities: []string{"refreshable", "profile"},
+					Callback:     "auto",
 				},
 			},
 		},
@@ -185,6 +195,32 @@ func (s *stubPlugin) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Login
 		}
 		phone := string(req.State)[len("phone:"):]
 		return loginDone([]byte(`{"phone":"`+phone+`"}`), "phone-user-"+phone), nil
+
+	case "oauth_auto":
+		// 模拟 workbuddy 的 auto 回调：首次下发授权链接并等待，第 3 次轮询视为已授权
+		if len(req.State) == 0 {
+			s.mu.Lock()
+			s.oauthPolls = 0
+			s.mu.Unlock()
+			return &pb.LoginResult{Next: &pb.LoginNextStep{
+				Action: "open_url",
+				Url:    "https://example.com/oauth/authorize?state=stub-auto",
+				Prompt: map[string]string{"zh": "请在浏览器完成授权（示例插件：第 3 次轮询自动通过）"},
+				Wait:   true,
+				State:  []byte("auto-pending"),
+			}}, nil
+		}
+		s.mu.Lock()
+		s.oauthPolls++
+		n := s.oauthPolls
+		if n >= 3 {
+			s.oauthPolls = 0
+		}
+		s.mu.Unlock()
+		if n < 3 {
+			return &pb.LoginResult{Next: &pb.LoginNextStep{Action: "open_url", Wait: true, State: req.State}}, nil
+		}
+		return loginDone([]byte(`{"oauth":"auto"}`), "oauth-auto-user"), nil
 
 	case "oauth":
 		if len(req.State) == 0 {
