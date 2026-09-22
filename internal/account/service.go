@@ -4,9 +4,13 @@ package account
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"gorm.io/gorm"
 
@@ -15,6 +19,9 @@ import (
 	"github.com/Sndeok/ClawProxyHub-Next/internal/plugin"
 	pb "github.com/Sndeok/ClawProxyHub-Next/sdk/proto/cphv1"
 )
+
+// ErrNotRefreshable 插件未实现 Refresh（如仅靠 API Key 的账号，本就不需要刷新）。
+var ErrNotRefreshable = errors.New("该插件不支持刷新（API 密钥类账号无需刷新）")
 
 // ErrUnauthorized 通用业务错误。
 type ErrUnauthorized string
@@ -141,6 +148,10 @@ func (s *Service) Refresh(ctx context.Context, accountID int64) (*model.Account,
 	cred.Proxy = ProxyForAccount(s.db, acct.ID)
 	result, err := inst.Client().Refresh(ctx, cred)
 	if err != nil {
+		// 插件没实现 Refresh（API 密钥类账号常见）：给可读提示，不透出 gRPC 原始错误
+		if status.Code(err) == codes.Unimplemented {
+			return nil, ErrNotRefreshable
+		}
 		return nil, fmt.Errorf("plugin refresh: %w", err)
 	}
 	if result.Error != nil && result.Error.Code != 0 {
@@ -157,7 +168,8 @@ func (s *Service) Refresh(ctx context.Context, accountID int64) (*model.Account,
 	}
 	if result.Profile != nil {
 		updates["profile_json"] = profileJSON(result.Profile)
-		if result.Profile.DisplayName != "" {
+		// 只在账号还没有名字时采用插件值：用户手动改过名就不覆盖
+		if shouldAdoptDisplayName(acct.DisplayName, result.Profile.DisplayName) {
 			updates["display_name"] = result.Profile.DisplayName
 		}
 		// 积分明细快照：插件解析了才更新，为空保留旧值（避免无明细的插件抹掉已有数据）
@@ -334,4 +346,12 @@ func (s *Service) SubscribeRefresh(ctx context.Context, bus *event.Bus) {
 			}
 		}
 	}()
+}
+
+// shouldAdoptDisplayName 刷新时是否采用插件上报的展示名。
+//
+// 仅当账号当前没有名字才采用：用户手动改过名的账号不应该被一次刷新改回去
+// （插件给的往往是上游邮箱/昵称，覆盖后用户看不出是哪个号）。
+func shouldAdoptDisplayName(current, fromPlugin string) bool {
+	return strings.TrimSpace(fromPlugin) != "" && strings.TrimSpace(current) == ""
 }

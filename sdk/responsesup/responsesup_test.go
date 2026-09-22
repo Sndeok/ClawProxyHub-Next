@@ -210,3 +210,122 @@ func TestChatBodyToolResultBlocks(t *testing.T) {
 		t.Errorf("工具结果文本拼接错误: %v", out["output"])
 	}
 }
+
+// TestChatBodyReasoningEffort Responses 方言只认 reasoning.effort：
+// 顶层 reasoning_effort 会被上游忽略（Codex 的 xhigh 这类私有值甚至会 500）。
+func TestChatBodyReasoningEffort(t *testing.T) {
+	req := &pb.ChatRequest{
+		Model: "gpt-5.6-sol",
+		Extra: map[string]string{"reasoning_effort": "high", "top_p": "0.9", "parallel_tool_calls": "true"},
+	}
+	body := ChatBody(req)
+	reasoning, ok := body["reasoning"].(map[string]interface{})
+	if !ok || reasoning["effort"] != "high" {
+		t.Fatalf("reasoning_effort 未映射成 reasoning.effort: %v", body["reasoning"])
+	}
+	if _, hasTop := body["reasoning_effort"]; hasTop {
+		t.Error("不应下发顶层 reasoning_effort")
+	}
+	if body["top_p"] != 0.9 {
+		t.Errorf("top_p 应按数字下发: %#v", body["top_p"])
+	}
+	if body["parallel_tool_calls"] != true {
+		t.Errorf("parallel_tool_calls 应按布尔下发: %#v", body["parallel_tool_calls"])
+	}
+}
+
+// TestParserIncompleteIsLength 被 max_output_tokens 截断是正常结束（length），不是失败。
+func TestParserIncompleteIsLength(t *testing.T) {
+	var events []*pb.StreamEvent
+	p := NewParser(func(ev *pb.StreamEvent) { events = append(events, ev) })
+	p.Feed(`data: {"type":"response.created","response":{"model":"m"}}`)
+	p.Feed(`data: {"type":"response.output_text.delta","delta":"半截内容"}`)
+	p.Feed(`data: {"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"},"usage":{"input_tokens":10,"output_tokens":5}}}`)
+
+	var finish *pb.MessageFinish
+	for _, ev := range events {
+		if f, ok := ev.Event.(*pb.StreamEvent_MessageFinish); ok {
+			finish = f.MessageFinish
+		}
+		if _, bad := ev.Event.(*pb.StreamEvent_TaskFailed); bad {
+			t.Fatal("截断不应上报为失败事件")
+		}
+	}
+	if finish == nil {
+		t.Fatal("缺少结束事件")
+	}
+	if finish.FinishReason != "length" {
+		t.Errorf("finish_reason = %q, want length", finish.FinishReason)
+	}
+	if finish.Usage == nil || finish.Usage.InputTokens != 10 || finish.Usage.OutputTokens != 5 {
+		t.Errorf("断流帧的 usage 未带出: %+v", finish.Usage)
+	}
+}
+
+// TestParserToolArgsDoneFallback 上游只在 done 给全量参数时必须补发一次，
+// 否则工具调用会带着空 arguments 到客户端（工具直接执行失败）。
+func TestParserToolArgsDoneFallback(t *testing.T) {
+	var args string
+	p := NewParser(func(ev *pb.StreamEvent) {
+		if d, ok := ev.Event.(*pb.StreamEvent_ToolCallDelta); ok {
+			args += d.ToolCallDelta.ArgumentsDelta
+		}
+	})
+	p.Feed(`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"Read"}}`)
+	p.Feed(`data: {"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"Read","arguments":"{\"path\":\"a.go\"}"}}`)
+	p.Feed(`data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1}}}`)
+	if args != `{"path":"a.go"}` {
+		t.Fatalf("done 里的全量参数未补发: %q", args)
+	}
+}
+
+// TestParserToolArgsNoDuplicate 走过增量时，done 的全量参数不得重复下发。
+func TestParserToolArgsNoDuplicate(t *testing.T) {
+	var args string
+	p := NewParser(func(ev *pb.StreamEvent) {
+		if d, ok := ev.Event.(*pb.StreamEvent_ToolCallDelta); ok {
+			args += d.ToolCallDelta.ArgumentsDelta
+		}
+	})
+	p.Feed(`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"call_1","name":"Read"}}`)
+	p.Feed(`data: {"type":"response.function_call_arguments.delta","output_index":0,"item_id":"fc_1","delta":"{\"path\":"}`)
+	p.Feed(`data: {"type":"response.function_call_arguments.delta","output_index":0,"item_id":"fc_1","delta":"\"a.go\"}"}`)
+	p.Feed(`data: {"type":"response.function_call_arguments.done","item_id":"fc_1","arguments":"{\"path\":\"a.go\"}"}`)
+	p.Feed(`data: {"type":"response.output_item.done","item":{"type":"function_call","id":"fc_1","arguments":"{\"path\":\"a.go\"}"}}`)
+	if args != `{"path":"a.go"}` {
+		t.Fatalf("参数被重复下发: %q", args)
+	}
+}
+
+// TestParserFinishReasonToolCalls 没给结束原因但有工具调用 → tool_calls（不是 stop）。
+func TestParserFinishReasonToolCalls(t *testing.T) {
+	var reason string
+	p := NewParser(func(ev *pb.StreamEvent) {
+		if f, ok := ev.Event.(*pb.StreamEvent_MessageFinish); ok {
+			reason = f.MessageFinish.FinishReason
+		}
+	})
+	p.Feed(`data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","id":"fc_1","call_id":"c1","name":"Read"}}`)
+	p.Finish()
+	if reason != "tool_calls" {
+		t.Errorf("finish_reason = %q, want tool_calls", reason)
+	}
+}
+
+// TestParserNoDoubleTerminal 收尾之后再来的错误事件必须被忽略，
+// 否则同一个流会先给 MessageFinish 再给 TaskFailed，核心会当成失败重试。
+func TestParserNoDoubleTerminal(t *testing.T) {
+	var terminals int
+	p := NewParser(func(ev *pb.StreamEvent) {
+		switch ev.Event.(type) {
+		case *pb.StreamEvent_MessageFinish, *pb.StreamEvent_TaskFailed:
+			terminals++
+		}
+	})
+	p.Feed(`data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1}}}`)
+	p.FinishWithError(502, "迟到的错误")
+	p.Finish()
+	if terminals != 1 {
+		t.Fatalf("终止事件出现 %d 次，want 1", terminals)
+	}
+}
