@@ -71,6 +71,11 @@ func (h *Host) warmup() {
 }
 
 func (h *Host) conn() pb.ClawHostClient {
+	// nil 宿主（未注入 / 单测直接调插件）时安全降级：所有回调返回零值，
+	// 插件用自己的默认值继续跑，而不是空指针崩溃。
+	if h == nil || h.dial == nil {
+		return nil
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if h.client != nil {

@@ -7,7 +7,6 @@ import {
   BarChart3, Boxes, ChevronLeft, Cpu, FileText, GitBranch, KeyRound, ListTree,
   Menu, Moon, Network, Plug, Power, Settings, Sun, Users,
 } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { clearToken, getToken } from '@/lib/api'
 import { cn } from '@/lib/utils'

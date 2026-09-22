@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.2.0 — 指纹注入 · 路由 UA · 安装进度 · 系统备份（2026-09-22）
+
+**网关注入（按入口协议）**
+- Added 客户端指纹注入：核心按入口协议生成 Claude Code（`messages`）与 Codex
+  （`chat_completions` / `responses`）指纹头，序列化为 JSON 放进 `ChatRequest.extra` 的
+  `fingerprint_headers`（SDK 常量 `ExtraFingerprintHeaders`）。只生成下发，是否采用由插件决定。
+- Added 对话 UA 三级解析：`extra` 的 `client_user_agent` = 路由级 UA > 全局网关 UA > 客户端自带
+  （SDK 常量 `ExtraClientUserAgent`）；路由弹窗与设置页均可配置。
+
+**插件市场**
+- Changed 市场安装改为 NDJSON 进度流：`downloading(received/total)` → `stopping` / `installing` /
+  `starting` → `installed` / `error`；下载走 ctx（前端取消即中断），200ms 节流。
+  前端逐行渲染，20MB+ 包不再只有一个转圈。
+
+**运维**
+- Added 系统信息 `GET /admin/system/info`：版本 / 契约 / Go 版本 / 数据目录 / 库体积 /
+  迁移状态 / 各表计数 / 运行时长 / goroutine 数。
+- Added 备份导出 `GET /admin/system/backup`：`VACUUM INTO` 一致性快照 + `secret.key` +
+  `meta.json` 打包 zip（不中断服务）。
+- Added 备份恢复 `POST /admin/system/restore`：校验后暂存 `<data>/restore`，重启时由
+  `database.ApplyPendingRestore` 换入，旧库与旧密钥自动另存 `.bak-<时间戳>`，并清理 `-wal/-shm`。
+
+**SDK**
+- Fixed `sdk.Host` 的 nil 宿主防护：未注入 / 单测场景下 `Log` / `Settings` / `StoreGet` /
+  `StorePut` 返回零值，而不是空指针 panic。
+
+**其它**
+- Fixed `internal/gateway/aggregate.go` 整体复制 `pb.Usage`（内含 protoimpl 锁）的 vet 报错。
+- Changed 前端开启 `noUnusedLocals` / `noUnusedParameters`，清理 4 处未使用 import。
 ## v1.1.0 — 协议兼容 · 可观测 · 模型中心（2026-09-22）
 
 **网关 / 协议**
