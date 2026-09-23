@@ -68,6 +68,8 @@ export function AccountDetail({
   const [testText, setTestText] = useState('')
   const [testLogs, setTestLogs] = useState<string[]>([])
   const [testError, setTestError] = useState('')
+  const [customModel, setCustomModel] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   const load = useCallback(async () => {
     if (!account) return
@@ -77,9 +79,19 @@ export function AccountDetail({
     setTestError('')
     try {
       const d = await api.get<Detail>('/admin/accounts/' + account.id + '/detail')
+      let list = d.models ?? []
+      if (list.length === 0) {
+        // 账号快照为空时顺手拉一次上游目录，避免「在线测试」只能手打模型名
+        try {
+          const r = await api.get<{ models: ModelInfo[] }>('/admin/accounts/' + account.id + '/models?refresh=1')
+          list = r.models ?? []
+          d.models = list
+        } catch {
+          // 拉不到就保持空列表，仍可手输模型名
+        }
+      }
       setDetail(d)
-      const first = (d.models ?? [])[0]?.id ?? ''
-      setModel((m) => m || first)
+      setModel((m) => m || (list[0]?.id ?? ''))
     } finally {
       setLoading(false)
     }
@@ -107,6 +119,26 @@ export function AccountDetail({
       setTestError((e as Error).message)
     } finally {
       setTesting(false)
+    }
+  }
+
+  // syncModels 手动同步账号模型目录（在线测试的下拉列表就是它）
+  async function syncModels() {
+    if (!account) return
+    setSyncing(true)
+    setTestError('')
+    try {
+      const r = await api.get<{ models: ModelInfo[] }>('/admin/accounts/' + account.id + '/models?refresh=1')
+      const list = r.models ?? []
+      setDetail((d) => (d ? { ...d, models: list } : d))
+      if (list.length > 0) {
+        setCustomModel(false)
+        setModel((m) => (list.some((x) => x.id === m) ? m : list[0].id))
+      }
+    } catch (e) {
+      setTestError((e as Error).message)
+    } finally {
+      setSyncing(false)
     }
   }
 
@@ -193,19 +225,48 @@ export function AccountDetail({
               <option value="responses">OpenAI Responses</option>
               <option value="messages">Anthropic Messages</option>
             </Select>
-            <Input
-              className="min-w-[140px] flex-1"
-              list="account-model-options"
-              placeholder="模型 id（留空用 auto）"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-            />
+            {customModel || models.length === 0 ? (
+              <Input
+                className="min-w-[140px] flex-1"
+                placeholder="模型 id（留空用 auto）"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+              />
+            ) : (
+              <Select
+                className="min-w-[170px] flex-1"
+                value={model}
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') {
+                    setCustomModel(true)
+                    setModel('')
+                    return
+                  }
+                  setModel(e.target.value)
+                }}
+              >
+                {model !== '' && !models.some((m) => m.id === model) && <option value={model}>{model}（手输）</option>}
+                {models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {modelLabel(m)}
+                    {modelLabel(m) !== m.id ? ` · ${m.id}` : ''}
+                  </option>
+                ))}
+                <option value="__custom__">自定义模型名…</option>
+              </Select>
+            )}
+            <Button variant="outline" size="sm" onClick={() => void syncModels()} disabled={syncing}>
+              <RefreshCw className={syncing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} /> 同步模型
+            </Button>
+            {customModel && models.length > 0 && (
+              <button
+                className="text-[12px] text-muted-foreground underline-offset-2 hover:underline"
+                onClick={() => setCustomModel(false)}
+              >
+                返回列表
+              </button>
+            )}
           </div>
-          <datalist id="account-model-options">
-            {models.map((m) => (
-              <option key={m.id} value={m.id} />
-            ))}
-          </datalist>
           <div className="mt-2 flex items-center gap-2">
             <Input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="测试问题" />
             <Button onClick={runTest} disabled={testing}>
