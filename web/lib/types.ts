@@ -122,6 +122,10 @@ export interface ModelInfo {
 export interface ModelRow extends ModelInfo {
   accounts?: number
   plugin?: string
+  /** 提供该模型的全部插件名（去重排序）；长度 > 1 表示多渠道同名 */
+  plugins?: string[]
+  /** 每个来源插件及其账号数 */
+  sources?: { plugin: string; accounts: number }[]
 }
 
 export interface ProxyRow {

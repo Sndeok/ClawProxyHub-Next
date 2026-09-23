@@ -43,10 +43,21 @@ func mergeModelMeta(v *modelView, m *pb.ModelInfo) {
 	}
 }
 
+// modelSource 该模型来自哪个插件、有几个账号提供。
+type modelSource struct {
+	Plugin   string `json:"plugin"`
+	Accounts int    `json:"accounts"`
+}
+
 type modelView struct {
 	ID       string `json:"id"`
 	Accounts int    `json:"accounts"` // 有多少个活跃账号提供该模型
-	Plugin   string `json:"plugin"`   // 首个提供者的插件名
+	Plugin   string `json:"plugin"`   // 首个提供者的插件名（兼容旧前端）
+
+	// Plugins / Sources：全部来源插件（去重、按名称排序）。同一模型被多个插件提供时，
+	// 前端会打「多源」标记——同名模型在不同渠道下行为/计费可能不同，需要用户看得见。
+	Plugins []string      `json:"plugins,omitempty"`
+	Sources []modelSource `json:"sources,omitempty"`
 
 	Label                  map[string]string `json:"label,omitempty"`
 	Series                 string            `json:"series,omitempty"`
@@ -112,6 +123,7 @@ func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 
 	var out []modelView
 	index := map[string]int{}
+	srcOf := map[string]map[string]int{} // 模型 id → 插件名 → 账号数
 	for _, a := range accts {
 		for _, m := range s.accounts.StoredModels(a.ID) {
 			if m.Id == "" {
@@ -124,7 +136,29 @@ func (s *Server) listModels(w http.ResponseWriter, r *http.Request) {
 				out = append(out, modelView{ID: m.Id, Plugin: pluginName[a.PluginID]})
 			}
 			out[i].Accounts++
+			pname := pluginName[a.PluginID]
+			if srcOf[m.Id] == nil {
+				srcOf[m.Id] = map[string]int{}
+			}
+			srcOf[m.Id][pname]++
 			mergeModelMeta(&out[i], m)
+		}
+	}
+	// 补来源列表：插件名排序，保证前端展示顺序稳定
+	for i := range out {
+		counts := srcOf[out[i].ID]
+		names := make([]string, 0, len(counts))
+		for name := range counts {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		out[i].Plugins = names
+		out[i].Sources = make([]modelSource, 0, len(names))
+		for _, name := range names {
+			out[i].Sources = append(out[i].Sources, modelSource{Plugin: name, Accounts: counts[name]})
+		}
+		if len(names) > 0 {
+			out[i].Plugin = names[0]
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })

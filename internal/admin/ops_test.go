@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	"github.com/Sndeok/ClawProxyHub-Next/internal/account"
 	"github.com/Sndeok/ClawProxyHub-Next/internal/model"
 )
 
@@ -179,5 +180,84 @@ func TestTodayStatsByAccount(t *testing.T) {
 	}
 	if got, ok := stats[a2]; ok && got.Tokens != 0 {
 		t.Errorf("昨天的日志不应计入今日：%+v", got)
+	}
+}
+
+// TestListModelsReportsSources 模型中心「来源渠道」：同名模型被多个插件提供时要列全，
+// 并给出每个插件下的账号数（前端据此打「多源」标记）。
+func TestListModelsReportsSources(t *testing.T) {
+	db := opsTestDB(t)
+	qoder := model.Plugin{Name: "qoder", Version: "0.1.7"}
+	qwork := model.Plugin{Name: "qoderwork", Version: "0.1.13"}
+	if err := db.Create(&qoder).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&qwork).Error; err != nil {
+		t.Fatal(err)
+	}
+	accts := []model.Account{
+		{PluginID: qoder.ID, DisplayName: "a1", Status: "active",
+			ModelsJSON: `[{"id":"qmodel_38max","label":{"zh":"Qwen3.8-Max"}},{"id":"only-qoder"}]`},
+		{PluginID: qwork.ID, DisplayName: "a2", Status: "active", ModelsJSON: `[{"id":"qmodel_38max"}]`},
+		{PluginID: qwork.ID, DisplayName: "a3", Status: "active", ModelsJSON: `[{"id":"qmodel_38max"}]`},
+		{PluginID: qwork.ID, DisplayName: "paused", Status: "paused", ModelsJSON: `[{"id":"qmodel_38max"}]`},
+	}
+	for i := range accts {
+		if err := db.Create(&accts[i]).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	srv := &Server{db: db, accounts: account.New(db, t.TempDir(), nil)}
+	req := httptest.NewRequest(http.MethodGet, "/admin/models", nil)
+	rec := httptest.NewRecorder()
+	srv.listModels(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Models []struct {
+			ID       string   `json:"id"`
+			Accounts int      `json:"accounts"`
+			Plugin   string   `json:"plugin"`
+			Plugins  []string `json:"plugins"`
+			Sources  []struct {
+				Plugin   string `json:"plugin"`
+				Accounts int    `json:"accounts"`
+			} `json:"sources"`
+		} `json:"models"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]int{}
+	for i, m := range body.Models {
+		byID[m.ID] = i
+	}
+	shared, ok := byID["qmodel_38max"]
+	if !ok {
+		t.Fatal("缺少 qmodel_38max")
+	}
+	m := body.Models[shared]
+	if len(m.Plugins) != 2 {
+		t.Fatalf("plugins = %v，期望 2 个来源", m.Plugins)
+	}
+	if m.Plugins[0] != "qoder" || m.Plugins[1] != "qoderwork" {
+		t.Errorf("来源顺序应稳定排序：%v", m.Plugins)
+	}
+	counts := map[string]int{}
+	for _, s := range m.Sources {
+		counts[s.Plugin] = s.Accounts
+	}
+	if counts["qoder"] != 1 || counts["qoderwork"] != 2 {
+		t.Errorf("每渠道账号数错误：%v（暂停账号不应计入）", counts)
+	}
+	if m.Accounts != 3 {
+		t.Errorf("活跃账号总数 = %d，期望 3", m.Accounts)
+	}
+	if only, ok := byID["only-qoder"]; !ok {
+		t.Fatal("缺少 only-qoder")
+	} else if got := body.Models[only]; len(got.Plugins) != 1 || got.Plugins[0] != "qoder" {
+		t.Errorf("单来源模型应只有 1 个插件：%v", got.Plugins)
 	}
 }

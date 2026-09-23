@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input, Select } from '@/components/ui/input'
 import { Table, TableShell, Td, Th, Tr } from '@/components/ui/table'
 import { api } from '@/lib/api'
-import type { ModelRow } from '@/lib/types'
+import type { ModelRow, PluginInfo } from '@/lib/types'
 import { fmtCompact } from '@/lib/utils'
 
 const EFFORT_LABEL: Record<string, string> = {
@@ -44,6 +44,13 @@ function hasReasoning(m: ModelRow): boolean {
   return (m.reasoning_efforts ?? []).length > 0 || (m.tags ?? []).some((t) => t.includes('推理'))
 }
 
+// sourcesOf 兼容旧后端：没有 sources 时退回单个 plugin 字段。
+function sourcesOf(m: ModelRow): { plugin: string; accounts: number }[] {
+  if (m.sources?.length) return m.sources
+  if (m.plugin) return [{ plugin: m.plugin, accounts: m.accounts ?? 0 }]
+  return []
+}
+
 function isMultiModal(m: ModelRow): boolean {
   return (m.tags ?? []).some((t) => t.includes('多模态') || t.includes('读图'))
 }
@@ -57,12 +64,18 @@ export default function ModelsPage() {
   const [series, setSeries] = useState('全部')
   const [cap, setCap] = useState<'all' | 'reasoning' | 'big' | 'multi'>('all')
   const [sortBy, setSortBy] = useState<'multiplier' | 'context' | 'name'>('multiplier')
+  const [plugins, setPlugins] = useState<PluginInfo[]>([])
+  const [pluginFilter, setPluginFilter] = useState('all')
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await api.get<{ models: ModelRow[] }>('/admin/models')
+      const [r, p] = await Promise.all([
+        api.get<{ models: ModelRow[] }>('/admin/models'),
+        api.get<{ plugins: PluginInfo[] }>('/admin/plugins').catch(() => ({ plugins: [] })),
+      ])
       setModels(r.models ?? [])
+      setPlugins(p.plugins ?? [])
     } finally {
       setLoading(false)
     }
@@ -96,6 +109,26 @@ export default function ModelsPage() {
     return ['全部', ...Array.from(set).sort()]
   }, [models])
 
+  const pluginLabel = useCallback(
+    (name: string) => plugins.find((p) => p.name === name)?.label || name,
+    [plugins],
+  )
+
+  // 来源渠道列表：模型里出现过的插件名（按展示名排序）
+  const pluginOptions = useMemo(() => {
+    const set = new Set<string>()
+    for (const m of models) for (const s of sourcesOf(m)) set.add(s.plugin)
+    return Array.from(set).sort((a, b) => pluginLabel(a).localeCompare(pluginLabel(b)))
+  }, [models, pluginLabel])
+
+  const countByPlugin = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const m of models) {
+      for (const s of sourcesOf(m)) out[s.plugin] = (out[s.plugin] ?? 0) + 1
+    }
+    return out
+  }, [models])
+
   const stats = useMemo(() => {
     const maxContext = models.reduce((n, m) => Math.max(n, m.context_window || 0), 0)
     return {
@@ -103,6 +136,7 @@ export default function ModelsPage() {
       reasoning: models.filter(hasReasoning).length,
       big: models.filter((m) => (m.context_window || 0) >= BIG_CONTEXT).length,
       maxContext,
+      multi: models.filter((m) => sourcesOf(m).length > 1).length,
     }
   }, [models])
 
@@ -110,6 +144,7 @@ export default function ModelsPage() {
     const kw = keyword.trim().toLowerCase()
     const filtered = models.filter((m) => {
       if (series !== '全部' && (m.series || '其他') !== series) return false
+      if (pluginFilter !== 'all' && !sourcesOf(m).some((s) => s.plugin === pluginFilter)) return false
       if (cap === 'reasoning' && !hasReasoning(m)) return false
       if (cap === 'big' && (m.context_window || 0) < BIG_CONTEXT) return false
       if (cap === 'multi' && !isMultiModal(m)) return false
@@ -118,7 +153,8 @@ export default function ModelsPage() {
         m.id.toLowerCase().includes(kw) ||
         displayName(m).toLowerCase().includes(kw) ||
         (m.series || '').toLowerCase().includes(kw) ||
-        (m.description || '').toLowerCase().includes(kw)
+        (m.description || '').toLowerCase().includes(kw) ||
+        sourcesOf(m).some((s) => pluginLabel(s.plugin).toLowerCase().includes(kw))
       )
     })
     const sorted = [...filtered]
@@ -133,7 +169,7 @@ export default function ModelsPage() {
       return av - bv
     })
     return sorted
-  }, [models, keyword, series, cap, sortBy])
+  }, [models, keyword, series, cap, sortBy, pluginFilter])
 
   const capTabs: [typeof cap, string][] = [
     ['all', '全部'],
@@ -174,13 +210,14 @@ export default function ModelsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         {(
           [
             ['可用模型', String(stats.total)],
             ['支持推理', String(stats.reasoning)],
             ['大上下文（≥128K）', String(stats.big)],
             ['最大上下文', stats.maxContext ? fmtCompact(stats.maxContext) : '-'],
+            ['多渠道同名模型', String(stats.multi)],
           ] as [string, string][]
         ).map(([k, v]) => (
           <Card key={k}>
@@ -208,6 +245,35 @@ export default function ModelsPage() {
         ))}
       </div>
 
+      {pluginOptions.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1">
+          <span className="mr-1 text-[12.5px] text-muted-foreground">来源渠道</span>
+          <button
+            type="button"
+            className={
+              'rounded border px-2.5 py-1 text-[12.5px] transition-colors ' +
+              (pluginFilter === 'all' ? 'border-primary bg-primary/10 font-medium' : 'text-muted-foreground hover:bg-accent')
+            }
+            onClick={() => setPluginFilter('all')}
+          >
+            全部 {models.length}
+          </button>
+          {pluginOptions.map((name) => (
+            <button
+              key={name}
+              type="button"
+              className={
+                'rounded border px-2.5 py-1 text-[12.5px] transition-colors ' +
+                (pluginFilter === name ? 'border-primary bg-primary/10 font-medium' : 'text-muted-foreground hover:bg-accent')
+              }
+              onClick={() => setPluginFilter(name)}
+            >
+              {pluginLabel(name)} {countByPlugin[name] ?? 0}
+            </button>
+          ))}
+        </div>
+      )}
+
       <TableShell>
         <Table>
           <thead>
@@ -217,6 +283,7 @@ export default function ModelsPage() {
               <Th className="hidden text-right md:table-cell">最大输出</Th>
               <Th className="hidden md:table-cell">推理档位</Th>
               <Th className="hidden md:table-cell">系列</Th>
+              <Th className="hidden md:table-cell">来源渠道</Th>
               <Th className="text-right">倍率</Th>
               <Th className="hidden md:table-cell">能力</Th>
               <Th className="hidden text-right md:table-cell">账号</Th>
@@ -229,6 +296,10 @@ export default function ModelsPage() {
                   <div>{m.id}</div>
                   {displayName(m) && <div className="text-[11.5px] text-muted-foreground">{displayName(m)}</div>}
                   <div className="mt-0.5 flex flex-wrap gap-1 md:hidden">
+                    {sourcesOf(m).map((s) => (
+                      <Badge key={s.plugin}>{pluginLabel(s.plugin)}</Badge>
+                    ))}
+                    {sourcesOf(m).length > 1 && <Badge tone="warning">多源</Badge>}
                     {m.series && <Badge>{m.series}</Badge>}
                     <span className="text-[11px] text-muted-foreground">{effortsText(m)}</span>
                   </div>
@@ -246,6 +317,34 @@ export default function ModelsPage() {
                   )}
                 </Td>
                 <Td className="hidden md:table-cell">{m.series || '其他'}</Td>
+                <Td className="hidden md:table-cell">
+                  <div className="flex flex-wrap items-center gap-1">
+                    {sourcesOf(m).map((s) => (
+                      <Badge
+                        key={s.plugin}
+                        tone={pluginFilter === s.plugin ? 'success' : 'neutral'}
+                        title={pluginLabel(s.plugin) + '：' + s.accounts + ' 个账号提供'}
+                      >
+                        {pluginLabel(s.plugin)}
+                        {s.accounts > 1 && <span className="ml-1 opacity-70">×{s.accounts}</span>}
+                      </Badge>
+                    ))}
+                    {sourcesOf(m).length > 1 && (
+                      <Badge
+                        tone="warning"
+                        title={
+                          '同名模型由 ' +
+                          sourcesOf(m).length +
+                          ' 个渠道提供：' +
+                          sourcesOf(m).map((s) => pluginLabel(s.plugin) + '（' + s.accounts + ' 个账号）').join('、') +
+                          '；不同渠道的同名模型可能行为/计费不同，路由按账号分组解析'
+                        }
+                      >
+                        多源
+                      </Badge>
+                    )}
+                  </div>
+                </Td>
                 <Td className="tnum text-right">{multiplierText(m)}</Td>
                 <Td className="hidden md:table-cell">
                   <div className="flex flex-wrap gap-1">
@@ -259,7 +358,7 @@ export default function ModelsPage() {
             ))}
             {!loading && rows.length === 0 && (
               <Tr>
-                <Td colSpan={8} className="py-10 text-center text-muted-foreground">
+                <Td colSpan={9} className="py-10 text-center text-muted-foreground">
                   还没有模型：先去「账号」页同步一次上游目录，或点右上「同步上游目录」
                 </Td>
               </Tr>
