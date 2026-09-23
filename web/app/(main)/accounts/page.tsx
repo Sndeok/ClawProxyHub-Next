@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Plus, RefreshCw } from 'lucide-react'
 import { AccountDetail } from '@/components/account-detail'
 import { AccountEdit } from '@/components/account-edit'
@@ -24,6 +24,8 @@ export default function AccountsPage() {
   const [proxies, setProxies] = useState<ProxyRow[]>([])
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
+  // 按插件筛选：默认 'all' = 按插件分组展示全部账号
+  const [pluginFilter, setPluginFilter] = useState<number | 'all'>('all')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -116,38 +118,49 @@ export default function AccountsPage() {
     return days <= 0 ? `已到期${left}` : `${days} 天后${left}`
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <Button onClick={() => setAddOpen(true)} disabled={plugins.length === 0}>
-          <Plus className="h-3.5 w-3.5" /> 添加账号
-        </Button>
-        <div className="flex items-center gap-2">
-          {notice && <span className="text-[12.5px] text-muted-foreground">{notice}</span>}
-          <Button variant="outline" onClick={refreshAll} disabled={refreshing || accounts.length === 0}>
-            <RefreshCw className={refreshing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-            一键刷新
-          </Button>
-        </div>
-      </div>
+  // 账号按插件分组：账号页默认一块一个插件，避免十几个账号混在一起找不到
+  const sections = useMemo(() => {
+    const labelOf = (id: number) => plugins.find((p) => p.id === id)?.label || `#${id}`
+    const bucket = new Map<number, Account[]>()
+    for (const a of accounts) {
+      const list = bucket.get(a.plugin_id) ?? []
+      list.push(a)
+      bucket.set(a.plugin_id, list)
+    }
+    const order = plugins.map((p) => p.id).filter((id) => bucket.has(id))
+    for (const id of bucket.keys()) if (!order.includes(id)) order.push(id)
+    return order.map((id) => ({ id, label: labelOf(id), accounts: bucket.get(id) ?? [] }))
+  }, [accounts, plugins])
 
-      <TableShell>
-        <Table>
-          <thead>
-            <tr>
-              <Th>账号</Th>
-              <Th className="hidden md:table-cell">插件</Th>
-              <Th className="hidden md:table-cell">分组</Th>
-              <Th className="text-right">积分</Th>
-              <Th className="hidden text-right md:table-cell">今日 Token</Th>
-              <Th className="hidden text-right md:table-cell">今日积分</Th>
-              <Th className="hidden md:table-cell">积分到期</Th>
-              <Th>状态</Th>
-              <Th className="text-right">操作</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {accounts.map((a) => (
+  const visibleSections = pluginFilter === 'all' ? sections : sections.filter((s) => s.id === pluginFilter)
+
+  // 单个插件分组的整组刷新
+  async function refreshSection(list: Account[]) {
+    setRefreshing(true)
+    setNotice(`正在刷新 ${list.length} 个账号…`)
+    let ok = 0
+    let failed = 0
+    for (const a of list) {
+      try {
+        await api.post(`/admin/accounts/${a.id}/refresh`)
+        ok++
+      } catch {
+        failed++
+      }
+    }
+    await load()
+    setRefreshing(false)
+    setNotice(`已刷新 ${ok}/${list.length} 个账号${failed ? `，${failed} 个失败` : ''}`)
+  }
+
+  const chipClass = (active: boolean) =>
+    'rounded-full border px-2.5 py-1 text-[12px] transition-colors ' +
+    (active ? 'border-primary bg-primary/10 font-medium' : 'text-muted-foreground hover:bg-accent')
+
+  // 账号表格行（各分组共用；原表体已提到这里）
+  const accountRows = (list: Account[]) => (
+    <>
+      {list.map((a) => (
               <Tr key={a.id}>
                 <Td className="min-w-[120px] font-medium">
                   {a.display_name || `#${a.id}`}
@@ -162,7 +175,6 @@ export default function AccountsPage() {
                     )}
                   </div>
                 </Td>
-                <Td className="hidden text-muted-foreground md:table-cell">{pluginLabel(a.plugin_id)}</Td>
                 <Td className="hidden md:table-cell">
                   <div className="flex flex-wrap gap-1">
                     {(a.group_ids ?? []).map((gid) => (
@@ -220,27 +232,87 @@ export default function AccountsPage() {
                   </div>
                 </Td>
               </Tr>
-            ))}
-            {!loading && accounts.length === 0 && (
-              <Tr>
-                <Td colSpan={9} className="py-10 text-center text-muted-foreground">
-                  {plugins.length === 0 ? (
-                    <span>
-                      还没有可用插件，先到{' '}
-                      <Link href="/plugins" className="underline underline-offset-2">
-                        插件页
-                      </Link>{' '}
-                      安装并启动
-                    </span>
-                  ) : (
-                    <span>还没有账号：点左上角「添加账号」，用手机验证码 / 凭据文件 / 浏览器授权登录上游</span>
-                  )}
-                </Td>
-              </Tr>
+      ))}
+    </>
+  )
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between gap-2">
+        <Button onClick={() => setAddOpen(true)} disabled={plugins.length === 0}>
+          <Plus className="h-3.5 w-3.5" /> 添加账号
+        </Button>
+        <div className="flex items-center gap-2">
+          {notice && <span className="text-[12.5px] text-muted-foreground">{notice}</span>}
+          <Button variant="outline" onClick={refreshAll} disabled={refreshing || accounts.length === 0}>
+            <RefreshCw className={refreshing ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+            一键刷新
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[12.5px] text-muted-foreground">按插件</span>
+        <button className={chipClass(pluginFilter === 'all')} onClick={() => setPluginFilter('all')}>
+          全部 {accounts.length}
+        </button>
+        {sections.map((s) => (
+          <button key={s.id} className={chipClass(pluginFilter === s.id)} onClick={() => setPluginFilter(s.id)}>
+            {s.label} {s.accounts.length}
+          </button>
+        ))}
+      </div>
+
+      {visibleSections.map((s) => (
+        <TableShell key={s.id}>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/30 px-3 py-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-medium">{s.label}</span>
+              <span className="text-[12px] text-muted-foreground">{s.accounts.length} 个账号</span>
+            </div>
+            <button
+              className="text-[12px] text-muted-foreground underline-offset-2 hover:underline disabled:opacity-50"
+              onClick={() => void refreshSection(s.accounts)}
+              disabled={refreshing}
+            >
+              刷新本组
+            </button>
+          </div>
+          <Table>
+            <thead>
+              <tr>
+                <Th>账号</Th>
+                <Th className="hidden md:table-cell">分组</Th>
+                <Th className="text-right">积分</Th>
+                <Th className="hidden text-right md:table-cell">今日 Token</Th>
+                <Th className="hidden text-right md:table-cell">今日积分</Th>
+                <Th className="hidden md:table-cell">积分到期</Th>
+                <Th>状态</Th>
+                <Th className="text-right">操作</Th>
+              </tr>
+            </thead>
+            <tbody>{accountRows(s.accounts)}</tbody>
+          </Table>
+        </TableShell>
+      ))}
+
+      {!loading && accounts.length === 0 && (
+        <TableShell>
+          <div className="py-10 text-center text-[13px] text-muted-foreground">
+            {plugins.length === 0 ? (
+              <span>
+                还没有可用插件，先到 
+                <Link href="/plugins" className="underline underline-offset-2">
+                  插件页
+                </Link>
+                安装并启动
+              </span>
+            ) : (
+              <span>还没有账号：点左上角「添加账号」，用手机验证码 / 凭据文件 / 浏览器授权登录上游</span>
             )}
-          </tbody>
-        </Table>
-      </TableShell>
+          </div>
+        </TableShell>
+      )}
 
       <AccountDetail open={!!detailTarget} account={detailTarget} onClose={() => setDetailTarget(null)} />
 
