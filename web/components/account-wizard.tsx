@@ -9,7 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field, Modal } from '@/components/ui/modal'
 import { api } from '@/lib/api'
-import type { GroupInfo, PluginInfo } from '@/lib/types'
+import type { GroupInfo, ModelInfo, PluginInfo } from '@/lib/types'
+import { modelLabel, modelTitle } from '@/lib/utils'
 
 export interface AuthField {
   name: string
@@ -137,7 +138,7 @@ export function AccountWizard({
   const [profileName, setProfileName] = useState('')
   const [selectedGroups, setSelectedGroups] = useState<number[]>([])
   const [newGroup, setNewGroup] = useState('')
-  const [models, setModels] = useState<string[]>([])
+  const [models, setModels] = useState<ModelInfo[]>([])
   const [modelsBusy, setModelsBusy] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -193,8 +194,8 @@ export function AccountWizard({
     setModelsBusy(true)
     setHint('')
     try {
-      const r = await api.get<{ models: { id: string }[] | null }>(`/admin/accounts/${id}/models?refresh=1`)
-      setModels((r.models ?? []).map((m) => m.id))
+      const r = await api.get<{ models: ModelInfo[] | null }>(`/admin/accounts/${id}/models?refresh=1`)
+      setModels(r.models ?? [])
     } catch (e) {
       setHint(`模型同步失败：${(e as Error).message}（可稍后到账号详情重试）`)
     } finally {
@@ -591,7 +592,12 @@ export function AccountWizard({
             </div>
             <div className="mt-1.5 flex flex-wrap gap-1">
               {models.length > 0 ? (
-                models.map((m) => <Badge key={m}>{m}</Badge>)
+                models.map((m) => (
+                  <Badge key={m.id} title={modelTitle(m)} className="gap-1">
+                    {modelLabel(m)}
+                    {modelLabel(m) !== m.id && <span className="text-[10.5px] opacity-60">{m.id}</span>}
+                  </Badge>
+                ))
               ) : (
                 <span className="text-[12.5px] text-muted-foreground">{modelsBusy ? '正在读取上游模型…' : '暂无模型（可在账号详情里重新同步）'}</span>
               )}

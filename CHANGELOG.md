@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.2.4 — 模型名看得懂了（2026-09-23）
+
+**前端**
+- Fixed 账号「编辑」弹窗的模型目录：此前只显示上游内部 key（dmodel / gmodel / qmodel_38max…），
+  现在显示「展示名 + key」（如 `GLM-5.3 · gmodel`、`Qwen3.8-Max · qmodel_38max`），
+  鼠标悬停给出倍率 / 上下文 / 标签，一眼能认出是什么模型。
+- Fixed 新增账号向导的模型目录同样显示展示名 + key（此前只有 key）。
+- Changed 账号详情「模型目录」徽标的 tooltip 也带上倍率 / 上下文 / 标签。
+- Changed 三处共用 `lib/utils.ts` 的 `modelLabel` / `modelTitle`，避免再各写各的。
+
 ## v1.2.3 — 在线测试可选模型（2026-09-23）
 
 **前端**

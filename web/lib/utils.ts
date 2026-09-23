@@ -38,3 +38,23 @@ export function hitRate(cached: number | undefined, input: number | undefined): 
   if (!cached || !input || input <= 0) return '0%'
   return `${Math.min(100, (cached / input) * 100).toFixed(1)}%`
 }
+
+// 模型展示名：优先上游 label（zh / en），没有就退回 id。
+export function modelLabel(m: { id: string; label?: Record<string, string> }): string {
+  return m.label?.zh || m.label?.en || m.id
+}
+
+// 模型 tooltip：key + 倍率 / 上下文 / 标签，方便分辨「这串 key 到底是哪个模型」。
+export function modelTitle(m: {
+  id: string
+  label?: Record<string, string>
+  credits_multiplier?: number
+  context_window?: number
+  tags?: string[]
+}): string {
+  const parts = [`${modelLabel(m)}（${m.id}）`]
+  if (m.credits_multiplier) parts.push(`倍率 x${m.credits_multiplier}`)
+  if (m.context_window) parts.push(`上下文 ${Math.round(m.context_window / 1000)}K`)
+  if (m.tags?.length) parts.push(m.tags.join(' / '))
+  return parts.join(' · ')
+}

@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Field, Modal } from '@/components/ui/modal'
 import { api } from '@/lib/api'
 import type { Account, GroupInfo, ModelInfo } from '@/lib/types'
+import { modelLabel, modelTitle } from '@/lib/utils'
 
 interface ProxyRow {
   ID: number
@@ -202,9 +203,11 @@ export function AccountEdit({
                     'rounded border px-2 py-1 text-[12px] transition-colors ' +
                     (on ? 'border-primary bg-primary/10 font-medium' : 'text-muted-foreground hover:bg-accent')
                   }
+                  title={modelTitle(m)}
                   onClick={() => setSelected((v) => (on ? v.filter((x) => x !== m.id) : [...v, m.id]))}
                 >
-                  {m.id}
+                  <span>{modelLabel(m)}</span>
+                  {modelLabel(m) !== m.id && <span className="ml-1 text-[10.5px] opacity-60">{m.id}</span>}
                 </button>
               )
             })}

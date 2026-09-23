@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import { api } from '@/lib/api'
 import type { Account, ModelInfo } from '@/lib/types'
-import { fmtNum, fmtTime } from '@/lib/utils'
+import { fmtNum, fmtTime, modelLabel, modelTitle } from '@/lib/utils'
 
 interface CreditPackage {
   remaining?: string | number
@@ -44,11 +44,6 @@ function pkgExpiry(p: CreditPackage): string {
   return at ? fmtTime(at) : '-'
 }
 
-// 模型徽标文案：优先上游 DisplayName（Auto / GLM-5.3 / Kimi-K3 …），
-// 没有才退回 key——只显示 dmodel/gmodel 这类内部 key 时用户根本看不出是哪个模型。
-function modelLabel(m: ModelInfo): string {
-  return m.label?.zh || m.label?.en || m.id
-}
 
 export function AccountDetail({
   open,
@@ -206,7 +201,7 @@ export function AccountDetail({
             {models.map((m) => {
               const label = modelLabel(m)
               return (
-                <Badge key={m.id} title={m.id} className="gap-1">
+                <Badge key={m.id} title={modelTitle(m)} className="gap-1">
                   {label}
                   {label !== m.id && <span className="text-[10.5px] opacity-60">{m.id}</span>}
                 </Badge>

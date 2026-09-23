@@ -1,23 +1,23 @@
 {
-  "version": "1.2.3",
-  "release_url": "https://github.com/Sndeok/ClawProxyHub-Next/releases/tag/v1.2.3",
+  "version": "1.2.4",
+  "release_url": "https://github.com/Sndeok/ClawProxyHub-Next/releases/tag/v1.2.4",
   "changelog": {
     "title": {
-      "zh": "v1.2.3 — 在线测试可选模型",
-      "en": "v1.2.3 — model picker in account test"
+      "zh": "v1.2.4 — 模型名看得懂了",
+      "en": "v1.2.4 — readable model names everywhere"
     },
     "items": [
       {
-        "zh": "账号详情的「在线测试」模型改成真下拉列表（可选项来自账号模型目录），并加「同步模型」按钮",
-        "en": "Online test now uses a real model dropdown with a sync button"
+        "zh": "账号编辑弹窗的模型目录改为「展示名 + key」（GLM-5.3 · gmodel），悬停显示倍率/上下文/标签",
+        "en": "Account edit: model chips show label + key with tooltip"
       },
       {
-        "zh": "模型目录为空时打开抽屉会自动同步一次上游目录，不用再手打模型名",
-        "en": "Auto-sync catalog when empty"
+        "zh": "新增账号向导的模型目录同样显示展示名 + key",
+        "en": "Account wizard model list shows label + key"
       },
       {
-        "zh": "保留「自定义模型名…」入口，仍可手输未列出的模型",
-        "en": "Custom model name still supported"
+        "zh": "账号详情徽标 tooltip 也带倍率 / 上下文 / 标签",
+        "en": "Account detail badges show richer tooltips"
       }
     ]
   }
