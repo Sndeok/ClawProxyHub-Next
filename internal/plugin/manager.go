@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -259,6 +260,8 @@ func (m *Manager) Get(name string) (*Instance, bool) {
 }
 
 // Names 运行中的插件名列表。
+// 必须排序：底层是 map，Go 的 map 遍历顺序每次随机 —— 不排序会让管理页的
+// 插件列表/筛选项/下拉顺序每次请求都不一样（用户看到的就是"排序乱跳"）。
 func (m *Manager) Names() []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -266,6 +269,7 @@ func (m *Manager) Names() []string {
 	for n := range m.plugins {
 		names = append(names, n)
 	}
+	sort.Strings(names)
 	return names
 }
 

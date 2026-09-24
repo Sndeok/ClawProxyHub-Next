@@ -73,6 +73,23 @@ export function AccountEdit({
   // 账号所属插件的分组：跨插件分组没有意义，后端也会拒
   const pluginGroups = groups.filter((g) => g.plugin_id === account?.plugin_id)
 
+  const proxyLabel = (p: ProxyRow) => p.Name || `${p.Scheme}://${p.Host}:${p.Port}`
+  const proxyName = (id: number) => {
+    const p = proxies.find((x) => x.ID === id)
+    return p ? proxyLabel(p) : `#${id}`
+  }
+  // 分组已绑定的代理：账号级没绑时由网关继承（account.ProxyForAccount：账号级 > 分组级 > 直连）
+  const inheritedProxyIds = Array.from(
+    new Set(groups.filter((g) => groupIds.includes(g.id)).flatMap((g) => g.proxy_ids ?? [])),
+  ).filter((id) => !proxyIds.includes(id))
+  const proxySummary = () => {
+    if (proxyIds.length) return `账号级代理：${proxyIds.map(proxyName).join(' / ')}（优先于分组）`
+    if (inheritedProxyIds.length) {
+      return `账号级未绑定 → 当前生效的是分组代理：${inheritedProxyIds.map(proxyName).join(' / ')}`
+    }
+    return '账号级未绑定，分组也没绑代理 → 直连上游'
+  }
+
   async function syncModels() {
     if (!account) return
     setSyncing(true)
@@ -151,26 +168,34 @@ export function AccountEdit({
         </div>
       </Field>
 
-      <Field label="出站代理" hint="账号级代理优先级高于分组代理；不选则跟随分组 / 直连">
+      <Field label="出站代理" hint="账号级优先；未绑定时继承分组代理，都没有则直连">
         <div className="flex flex-wrap gap-1">
           {proxies.length === 0 && <span className="text-[12.5px] text-muted-foreground">还没有代理，先去代理页创建</span>}
           {proxies.map((p) => {
             const on = proxyIds.includes(p.ID)
+            const inherited = !on && inheritedProxyIds.includes(p.ID)
             return (
               <button
                 key={p.ID}
                 type="button"
+                title={inherited ? '来自分组绑定（点一下改成账号级绑定）' : undefined}
                 className={
                   'rounded border px-2 py-1 text-[12px] transition-colors ' +
-                  (on ? 'border-primary bg-primary/10 font-medium' : 'text-muted-foreground hover:bg-accent')
+                  (on
+                    ? 'border-primary bg-primary/10 font-medium'
+                    : inherited
+                      ? 'border-primary/50 border-dashed'
+                      : 'text-muted-foreground hover:bg-accent')
                 }
                 onClick={() => setProxyIds((v) => (on ? v.filter((x) => x !== p.ID) : [...v, p.ID]))}
               >
-                {p.Name || `${p.Scheme}://${p.Host}:${p.Port}`}
+                {proxyLabel(p)}
+                {inherited && <span className="ml-1 text-[11px] text-muted-foreground">继承分组</span>}
               </button>
             )
           })}
         </div>
+        <p className="mt-2 text-[12px] text-muted-foreground">{proxySummary()}</p>
       </Field>
 
       <Field label="模型目录" hint="未勾选的模型不会被路由同步采用">

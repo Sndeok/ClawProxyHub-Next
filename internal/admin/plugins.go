@@ -4,6 +4,8 @@ package admin
 import (
 	"encoding/base64"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/Sndeok/ClawProxyHub-Next/internal/model"
 	pb "github.com/Sndeok/ClawProxyHub-Next/sdk/proto/cphv1"
@@ -68,6 +70,15 @@ func (s *Server) listPlugins(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, v)
 	}
+	// 固定顺序：品牌名（忽略大小写）→ 插件名。前端的分组块、筛选项、下拉都按这个顺序渲染；
+	// 插件实例列表来自 map，不排序会跟着随机遍历顺序变（同一个页面刷新一次换个次序）。
+	sort.SliceStable(out, func(i, j int) bool {
+		li, lj := strings.ToLower(out[i].Label), strings.ToLower(out[j].Label)
+		if li != lj {
+			return li < lj
+		}
+		return out[i].Name < out[j].Name
+	})
 	writeJSON(w, http.StatusOK, map[string]interface{}{"plugins": out})
 }
 

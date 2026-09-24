@@ -109,6 +109,24 @@ export default function AccountsPage() {
 
   const pluginLabel = (id: number) => plugins.find((p) => p.id === id)?.label || `#${id}`
   const groupName = (id: number) => groups.find((g) => g.id === id)?.name || `#${id}`
+  const proxyLabel = (id: number) => {
+    const p = proxies.find((x) => x.ID === id)
+    return p ? p.Name || `${p.Scheme}://${p.Host}:${p.Port}` : `#${id}`
+  }
+  // 账号实际生效的出站代理：账号级绑定 > 所属分组绑定 > 直连（与网关 ProxyForAccount 同口径）
+  const proxyText = (a: Account) => {
+    const own = (a.proxy_ids ?? []).map(proxyLabel)
+    if (own.length) return own.join(' / ')
+    const inherited: string[] = []
+    for (const gid of a.group_ids ?? []) {
+      const g = groups.find((x) => x.id === gid)
+      for (const pid of g?.proxy_ids ?? []) {
+        const s = proxyLabel(pid)
+        if (!inherited.includes(s)) inherited.push(s)
+      }
+    }
+    return inherited.length ? `${inherited.join(' / ')}（继承分组）` : '直连'
+  }
   const expiryLabel = (a: Account) => {
     const c = a.credits
     if (!c?.next_expiry) return '-'
@@ -129,7 +147,10 @@ export default function AccountsPage() {
     }
     const order = plugins.map((p) => p.id).filter((id) => bucket.has(id))
     for (const id of bucket.keys()) if (!order.includes(id)) order.push(id)
-    return order.map((id) => ({ id, label: labelOf(id), accounts: bucket.get(id) ?? [] }))
+    // 顺序固定：按品牌名排序（后端已排序，这里再兜一层：块与筛选都不会再乱跳）
+    return order
+      .map((id) => ({ id, label: labelOf(id), accounts: bucket.get(id) ?? [] }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'zh-Hans-CN') || a.id - b.id)
   }, [accounts, plugins])
 
   const visibleSections = pluginFilter === 'all' ? sections : sections.filter((s) => s.id === pluginFilter)
@@ -174,6 +195,7 @@ export default function AccountsPage() {
                       <Badge tone={a.credits?.expiring ? 'warning' : 'neutral'}>{expiryLabel(a)}</Badge>
                     )}
                   </div>
+                  <div className="mt-1 text-[11.5px] text-muted-foreground md:hidden">代理：{proxyText(a)}</div>
                 </Td>
                 <Td className="hidden md:table-cell">
                   <div className="flex flex-wrap gap-1">
@@ -182,6 +204,7 @@ export default function AccountsPage() {
                     ))}
                     {(a.group_ids ?? []).length === 0 && <span className="text-muted-foreground">-</span>}
                   </div>
+                  <div className="mt-1 text-[11.5px] text-muted-foreground">代理：{proxyText(a)}</div>
                 </Td>
                 <Td className="tnum whitespace-nowrap text-right">
                   <div>剩余 {fmtNum(a.credits?.remaining)}</div>
@@ -314,7 +337,13 @@ export default function AccountsPage() {
         </TableShell>
       )}
 
-      <AccountDetail open={!!detailTarget} account={detailTarget} onClose={() => setDetailTarget(null)} />
+      <AccountDetail
+        open={!!detailTarget}
+        account={detailTarget}
+        groups={groups}
+        proxies={proxies}
+        onClose={() => setDetailTarget(null)}
+      />
 
       <AccountEdit
         open={!!editTarget}

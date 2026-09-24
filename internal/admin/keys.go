@@ -171,22 +171,28 @@ func (s *Server) listGroups(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type groupView struct {
-		ID          int64  `json:"id"`
-		Name        string `json:"name"`
-		PluginID    int64  `json:"plugin_id"`
-		Plugin      string `json:"plugin"`
-		PluginLabel string `json:"plugin_label"` // 品牌名
-		Accounts    int64  `json:"accounts"`
+		ID          int64   `json:"id"`
+		Name        string  `json:"name"`
+		PluginID    int64   `json:"plugin_id"`
+		Plugin      string  `json:"plugin"`
+		PluginLabel string  `json:"plugin_label"` // 品牌名
+		Accounts    int64   `json:"accounts"`
+		ProxyIDs    []int64 `json:"proxy_ids"` // 分组级出站代理（账号级未绑时由账号继承）
 	}
 	var out []groupView
 	for _, g := range groups {
-		v := groupView{ID: g.ID, Name: g.Name, PluginID: g.PluginID}
+		v := groupView{ID: g.ID, Name: g.Name, PluginID: g.PluginID, ProxyIDs: []int64{}}
 		var p model.Plugin
 		if err := s.db.First(&p, g.PluginID).Error; err == nil {
 			v.Plugin = p.Name
 		}
 		v.PluginLabel = s.pluginBrandByID(g.PluginID)
 		s.db.Model(&model.AccountGroup{}).Where("group_id = ?", g.ID).Count(&v.Accounts)
+		var plinks []model.GroupProxy
+		s.db.Where("group_id = ?", g.ID).Order("proxy_id").Find(&plinks)
+		for _, l := range plinks {
+			v.ProxyIDs = append(v.ProxyIDs, l.ProxyID)
+		}
 		out = append(out, v)
 	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{"groups": out})

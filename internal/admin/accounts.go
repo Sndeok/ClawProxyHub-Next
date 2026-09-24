@@ -335,12 +335,30 @@ func (s *Server) listAccounts(w http.ResponseWriter, r *http.Request) {
 		TodayCredits  float64 `json:"today_credits"`
 		TodayCreditsE bool    `json:"today_credits_estimated"`
 		TodayRequests int64   `json:"today_requests"`
+		ProxyIDs      []int64 `json:"proxy_ids"` // 账号级出站代理（空 = 继承分组 / 直连）
 	}
 	today := todayStatsByAccount(s.db)
+	// 账号级代理绑定：一次查全，避免每行一次查询
+	acctIDs := make([]int64, 0, len(accts))
+	for _, a := range accts {
+		acctIDs = append(acctIDs, a.ID)
+	}
+	proxyByAccount := map[int64][]int64{}
+	if len(acctIDs) > 0 {
+		var links []model.AccountProxy
+		if s.db.Where("account_id IN ?", acctIDs).Order("account_id").Order("proxy_id").Find(&links).Error == nil {
+			for _, l := range links {
+				proxyByAccount[l.AccountID] = append(proxyByAccount[l.AccountID], l.ProxyID)
+			}
+		}
+	}
 	var out []acctView
 	for _, a := range accts {
 		v := acctView{ID: a.ID, PluginID: a.PluginID, GroupIDs: accountGroupIDs(s.db, a.ID), Name: a.DisplayName,
-			Status: a.Status, PauseReason: a.PauseReason}
+			Status: a.Status, PauseReason: a.PauseReason, ProxyIDs: proxyByAccount[a.ID]}
+		if v.ProxyIDs == nil {
+			v.ProxyIDs = []int64{}
+		}
 		if t := today[a.ID]; t != nil {
 			v.TodayTokens, v.TodayCached = t.Tokens, t.Cached
 			v.TodayRequests, v.TodayCredits = t.Requests, t.Credits

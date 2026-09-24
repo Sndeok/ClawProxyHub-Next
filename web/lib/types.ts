@@ -63,6 +63,8 @@ export interface Account {
   display_name: string
   status: string
   group_ids: number[] | null
+  // 账号级出站代理绑定（空 = 继承分组代理 / 直连）
+  proxy_ids?: number[]
   last_refresh_at: string | null
   pause_reason: string
   credits?: {
@@ -85,6 +87,8 @@ export interface GroupInfo {
   plugin: string
   plugin_label: string
   accounts: number
+  // 分组级出站代理：账号未绑账号级代理时继承它
+  proxy_ids?: number[]
 }
 
 export interface RouteInfo {

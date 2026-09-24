@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input, Select } from '@/components/ui/input'
 import { api } from '@/lib/api'
-import type { Account, ModelInfo } from '@/lib/types'
+import type { Account, GroupInfo, ModelInfo, ProxyRow } from '@/lib/types'
 import { fmtNum, fmtTime, modelLabel, modelTitle } from '@/lib/utils'
 
 interface CreditPackage {
@@ -48,12 +48,34 @@ function pkgExpiry(p: CreditPackage): string {
 export function AccountDetail({
   open,
   account,
+  groups = [],
+  proxies = [],
   onClose,
 }: {
   open: boolean
   account: Account | null
+  groups?: GroupInfo[]
+  proxies?: ProxyRow[]
   onClose: () => void
 }) {
+  // 当前生效的出站代理：账号级 > 分组级（继承）> 直连，与网关 ProxyForAccount 同口径
+  const outboundProxy = (() => {
+    const nameOf = (id: number) => {
+      const p = proxies.find((x) => x.ID === id)
+      return p ? p.Name || `${p.Scheme}://${p.Host}:${p.Port}` : `#${id}`
+    }
+    const own = (account?.proxy_ids ?? []).map(nameOf)
+    if (own.length) return own.join(' / ')
+    const inherited: string[] = []
+    for (const gid of account?.group_ids ?? []) {
+      const g = groups.find((x) => x.id === gid)
+      for (const pid of g?.proxy_ids ?? []) {
+        const s = nameOf(pid)
+        if (!inherited.includes(s)) inherited.push(s)
+      }
+    }
+    return inherited.length ? `${inherited.join(' / ')}（继承分组）` : '直连'
+  })()
   const [detail, setDetail] = useState<Detail | null>(null)
   const [loading, setLoading] = useState(false)
   const [endpoint, setEndpoint] = useState('chat_completions')
@@ -170,6 +192,7 @@ export function AccountDetail({
             ['创建时间', detail?.created_at ? fmtTime(detail.created_at) : '-'],
             ['剩余积分', fmtNum(detail?.credits?.remaining ?? account.credits?.remaining)],
             ['积分总额', fmtNum(detail?.credits?.total ?? account.credits?.total)],
+            ['出站代理', outboundProxy],
           ] as [string, string][]).map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 border-b py-2">
               <dt className="shrink-0 text-muted-foreground">{k}</dt>
