@@ -191,6 +191,7 @@ func convertAnthToolChoice(raw json.RawMessage) (*pb.ToolChoice, error) {
 type anthSSEState struct {
 	model        string
 	msgID        string
+	thinkBlock   int // 思考块 index；-1 未开
 	textBlock    int // 当前文本块 index；-1 未开
 	nextBlock    int
 	toolBlocks   map[string]int // tool_call id → block index
@@ -204,7 +205,7 @@ type anthSSEState struct {
 func newAnthSSEState(model string) *anthSSEState {
 	return &anthSSEState{
 		model: model, msgID: "msg_" + randHex(12),
-		textBlock: -1, toolBlocks: map[string]int{},
+		thinkBlock: -1, textBlock: -1, toolBlocks: map[string]int{},
 	}
 }
 
@@ -221,6 +222,24 @@ func (s *anthSSEState) startMessage() string {
 	})
 }
 
+// thinkingDelta 思考增量 → Anthropic thinking block（Claude Code 会就地展示思考内容）。
+func (s *anthSSEState) thinkingDelta(text string) string {
+	var out string
+	if s.thinkBlock < 0 {
+		s.thinkBlock = s.nextBlock
+		s.nextBlock++
+		out += anthEvent("content_block_start", map[string]interface{}{
+			"type": "content_block_start", "index": s.thinkBlock,
+			"content_block": map[string]interface{}{"type": "thinking", "thinking": ""},
+		})
+	}
+	out += anthEvent("content_block_delta", map[string]interface{}{
+		"type": "content_block_delta", "index": s.thinkBlock,
+		"delta": map[string]interface{}{"type": "thinking_delta", "thinking": text},
+	})
+	return out
+}
+
 // convertEvent 把信封事件转成 Anthropic SSE 行（可能多行，\n 分隔）。
 // 流结束时额外返回 message_stop 尾部。
 func (s *anthSSEState) convertEvent(ev *pb.StreamEvent) string {
@@ -230,7 +249,17 @@ func (s *anthSSEState) convertEvent(ev *pb.StreamEvent) string {
 		return s.startMessage()
 
 	case *pb.StreamEvent_ContentDelta:
+		if e.ContentDelta.GetReasoning() {
+			return s.thinkingDelta(e.ContentDelta.Text)
+		}
 		var out string
+		if s.thinkBlock >= 0 {
+			// 思考结束：先关思考块再开正文块（块 index 必须递增且不重叠）
+			out += anthEvent("content_block_stop", map[string]interface{}{
+				"type": "content_block_stop", "index": s.thinkBlock,
+			})
+			s.thinkBlock = -1
+		}
 		if s.textBlock < 0 {
 			s.textBlock = s.nextBlock
 			s.nextBlock++
@@ -276,6 +305,12 @@ func (s *anthSSEState) convertEvent(ev *pb.StreamEvent) string {
 	case *pb.StreamEvent_MessageFinish:
 		s.stopReason = mapStopReason(e.MessageFinish.FinishReason)
 		var out string
+		if s.thinkBlock >= 0 {
+			out += anthEvent("content_block_stop", map[string]interface{}{
+				"type": "content_block_stop", "index": s.thinkBlock,
+			})
+			s.thinkBlock = -1
+		}
 		if s.textBlock >= 0 {
 			out += anthEvent("content_block_stop", map[string]interface{}{
 				"type": "content_block_stop", "index": s.textBlock,

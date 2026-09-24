@@ -161,9 +161,14 @@ func (p *Parser) Feed(line string) {
 	var chunk struct {
 		Choices []struct {
 			Delta struct {
-				Role      string `json:"role"`
-				Content   string `json:"content"`
-				ToolCalls []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+				// 思考/推理增量：DeepSeek 系（含千问办公、Cline 免费通道）用 reasoning_content，
+				// 少数上游用 reasoning。以前这里没解析，导致「模型在想」的那几秒到几十秒
+				// 客户端一个字都收不到（表现为首字很慢），现在按 ContentDelta{Reasoning:true} 上报。
+				ReasoningContent string `json:"reasoning_content"`
+				Reasoning        string `json:"reasoning"`
+				ToolCalls        []struct {
 					Index    int    `json:"index"`
 					ID       string `json:"id"`
 					Function struct {
@@ -189,6 +194,16 @@ func (p *Parser) Feed(line string) {
 		}
 	}
 	for _, c := range chunk.Choices {
+		// 思考增量先发（与上游顺序一致），入口协议会按各自方式呈现
+		if rc := c.Delta.ReasoningContent; rc != "" {
+			p.emit(&pb.StreamEvent{Event: &pb.StreamEvent_ContentDelta{
+				ContentDelta: &pb.ContentDelta{Text: rc, Reasoning: true},
+			}})
+		} else if rc := c.Delta.Reasoning; rc != "" {
+			p.emit(&pb.StreamEvent{Event: &pb.StreamEvent_ContentDelta{
+				ContentDelta: &pb.ContentDelta{Text: rc, Reasoning: true},
+			}})
+		}
 		if c.Delta.Content != "" {
 			p.emit(&pb.StreamEvent{Event: &pb.StreamEvent_ContentDelta{
 				ContentDelta: &pb.ContentDelta{Text: c.Delta.Content},

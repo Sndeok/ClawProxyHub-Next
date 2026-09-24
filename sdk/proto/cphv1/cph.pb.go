@@ -1915,7 +1915,8 @@ func (x *MessageStart) GetModel() string {
 
 type ContentDelta struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"` // 增量文本
+	Text          string                 `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`            // 增量文本
+	Reasoning     bool                   `protobuf:"varint,2,opt,name=reasoning,proto3" json:"reasoning,omitempty"` // true = 思考/推理增量（不是正文；入口协议各按自己方式呈现）
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1955,6 +1956,13 @@ func (x *ContentDelta) GetText() string {
 		return x.Text
 	}
 	return ""
+}
+
+func (x *ContentDelta) GetReasoning() bool {
+	if x != nil {
+		return x.Reasoning
+	}
+	return false
 }
 
 type ToolCallDelta struct {
@@ -3078,9 +3086,10 @@ const file_sdk_proto_cph_proto_rawDesc = "" +
 	"taskFailedB\a\n" +
 	"\x05event\"$\n" +
 	"\fMessageStart\x12\x14\n" +
-	"\x05model\x18\x01 \x01(\tR\x05model\"\"\n" +
+	"\x05model\x18\x01 \x01(\tR\x05model\"@\n" +
 	"\fContentDelta\x12\x12\n" +
-	"\x04text\x18\x01 \x01(\tR\x04text\"\\\n" +
+	"\x04text\x18\x01 \x01(\tR\x04text\x12\x1c\n" +
+	"\treasoning\x18\x02 \x01(\bR\treasoning\"\\\n" +
 	"\rToolCallDelta\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12'\n" +

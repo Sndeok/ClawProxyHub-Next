@@ -174,6 +174,13 @@ func (s *openaiSSEState) convertEvent(ev *pb.StreamEvent) string {
 		return ""
 
 	case *pb.StreamEvent_ContentDelta:
+		if e.ContentDelta.GetReasoning() {
+			// 思考增量：OpenAI 兼容客户端（Cline / Roo / 各类 IDE 插件）按 reasoning_content
+			// 就地展示。以前整段丢掉，用户在「模型在想」的几秒到几十秒里一个字都看不到。
+			return s.chunk(map[string]interface{}{
+				"role": "assistant", "reasoning_content": e.ContentDelta.Text,
+			}, "")
+		}
 		return s.chunk(map[string]interface{}{
 			"role": "assistant", "content": e.ContentDelta.Text,
 		}, "")
@@ -258,6 +265,9 @@ type openaiAggregate struct {
 
 func (a *openaiAggregate) result() map[string]interface{} {
 	msg := map[string]interface{}{"role": "assistant", "content": a.text}
+	if a.reasoning != "" {
+		msg["reasoning_content"] = a.reasoning
+	}
 	if len(a.tools) > 0 {
 		msg["content"] = nil
 		var tcs []interface{}

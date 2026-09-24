@@ -19,13 +19,14 @@ type aggrTool struct {
 //
 // 注：通过方法提升，调用方仍然写 `agg.feed(ev)`，与重构前一致。
 type aggregateCore struct {
-	model  string
-	text   string
-	tools  map[string]*aggrTool
-	order  []string // 工具调用首次出现的顺序（Responses 需要按顺序输出项）
-	track  toolCallTracker
-	usage  pb.Usage // 最近一次 MessageFinish 携带的用量
-	finish string   // 信封原始 finish_reason（各协议自行映射）
+	model     string
+	text      string
+	reasoning string // 思考/推理增量（非流式下与正文分开呈现，不混进 content）
+	tools     map[string]*aggrTool
+	order     []string // 工具调用首次出现的顺序（Responses 需要按顺序输出项）
+	track     toolCallTracker
+	usage     pb.Usage // 最近一次 MessageFinish 携带的用量
+	finish    string   // 信封原始 finish_reason（各协议自行映射）
 }
 
 // feed 消费一条信封事件。未知事件类型直接忽略。
@@ -34,6 +35,10 @@ func (c *aggregateCore) feed(ev *pb.StreamEvent) {
 	case *pb.StreamEvent_MessageStart:
 		c.model = e.MessageStart.Model
 	case *pb.StreamEvent_ContentDelta:
+		if e.ContentDelta.GetReasoning() {
+			c.reasoning += e.ContentDelta.Text
+			return
+		}
 		c.text += e.ContentDelta.Text
 	case *pb.StreamEvent_ToolCallDelta:
 		// 上游可能分片只给 index 不给 id：由 tracker 按 index 归位补 id

@@ -243,7 +243,8 @@ message MessageStart {
 }
 
 message ContentDelta {
-  string text = 1;    // 增量文本
+  string text = 1;        // 增量文本
+  bool reasoning = 2;     // true = 思考/推理增量（不是正文；入口协议各按自己方式呈现）
 }
 
 message ToolCallDelta {

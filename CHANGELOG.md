@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.3.2 — 思考流实时透传（首字不再空白等待）（2026-09-24）
+
+**背景**：上游（千问办公 / Cline 免费通道 / 各 reasoning 模型）在"想"的时候就已经在推
+`delta.reasoning_content` 增量了，但解析器只取 `delta.content`，思考整段被丢掉 ——
+用户在模型思考的几秒到几十秒里一个字都收不到，看起来就是"首字很慢"。
+实测千问办公 pro：思考 @1.6s 到达、正文 @2.9s 才到，中间 1.3s 是纯空白。
+
+**插件契约**
+- Added `ContentDelta.reasoning`（field 2，向后兼容）：插件把上游思考增量按
+  `ContentDelta{Text, Reasoning:true}` 上报，不再与正文混在一起。
+- Added `sdk/openaiup` 解析上游 `reasoning_content` / `reasoning` → reasoning 增量。
+
+**网关**
+- Added `chat_completions`：思考转 `delta.reasoning_content`（Cline / Roo / 各类 IDE 插件直接展示）；
+  非流式在 `message.reasoning_content` 返回。
+- Added `messages`（Anthropic）：思考转 `thinking` block（`thinking_delta`），正文开始前自动关块。
+- Added `responses`（Codex）：思考转 reasoning item（`response.reasoning_summary_text.delta`
+  → done → output_item.done），并计入最终 `output`。
+
+> 兼容提示：新插件 + 旧核心（<1.3.2）会把思考当正文。请先升核心再升插件。
+
 ## v1.3.1 — 顺序固定 + 账号显示生效代理（2026-09-24）
 
 **前端**

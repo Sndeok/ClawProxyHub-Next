@@ -159,20 +159,24 @@ type respFnItem struct {
 }
 
 type responsesSSEState struct {
-	model    string
-	respID   string
-	nextItem int // 递增的 output_index；文本 item 与 function_call item 共用同一序列
-	textItem string
-	textIdx  int
-	text     string
-	fnItems  map[string]*respFnItem
-	fnOrder  []string
-	tools    toolCallTracker
+	model      string
+	respID     string
+	nextItem   int // 递增的 output_index；reasoning / 文本 / function_call item 共用同一序列
+	reasonItem string
+	reasonIdx  int
+	reasoning  string
+	textItem   string
+	textIdx    int
+	text       string
+	fnItems    map[string]*respFnItem
+	fnOrder    []string
+	tools      toolCallTracker
 }
 
 func newResponsesSSEState(model string) *responsesSSEState {
 	return &responsesSSEState{
 		model: model, respID: "resp_" + randHex(16),
+		reasonItem: "", reasonIdx: -1,
 		textItem: "", textIdx: -1, fnItems: map[string]*respFnItem{},
 	}
 }
@@ -211,6 +215,31 @@ func (s *responsesSSEState) convertEvent(ev *pb.StreamEvent) string {
 		})
 
 	case *pb.StreamEvent_ContentDelta:
+		if e.ContentDelta.GetReasoning() {
+			// 思考增量 → Responses 的 reasoning item（Codex 会把它渲染成思考摘要）。
+			// 以前整段丢掉：模型思考的几秒到几十秒里客户端完全静默。
+			var out string
+			if s.reasonItem == "" {
+				s.reasonItem = fmt.Sprintf("item_%d", s.nextItem)
+				s.reasonIdx = s.nextItem
+				s.nextItem++
+				out += respEvent("response.output_item.added", map[string]interface{}{
+					"output_index": s.reasonIdx, "item": map[string]interface{}{
+						"type": "reasoning", "id": s.reasonItem, "summary": []interface{}{},
+					},
+				})
+				out += respEvent("response.reasoning_summary_part.added", map[string]interface{}{
+					"item_id": s.reasonItem, "output_index": s.reasonIdx, "summary_index": 0,
+					"part": map[string]interface{}{"type": "summary_text", "text": ""},
+				})
+			}
+			s.reasoning += e.ContentDelta.Text
+			out += respEvent("response.reasoning_summary_text.delta", map[string]interface{}{
+				"item_id": s.reasonItem, "output_index": s.reasonIdx, "summary_index": 0,
+				"delta": e.ContentDelta.Text,
+			})
+			return out
+		}
 		var out string
 		if s.textItem == "" {
 			s.textItem = fmt.Sprintf("item_%d", s.nextItem)
@@ -253,6 +282,23 @@ func (s *responsesSSEState) convertEvent(ev *pb.StreamEvent) string {
 		// 输出项必须逐个 output_item.done 收尾：Codex CLI 只认 done 事件里的
 		// function_call（缺了它工具不会被调度执行，表现为「复杂操作无回复」）。
 		var output []interface{}
+		if s.reasonItem != "" {
+			out += respEvent("response.reasoning_summary_text.done", map[string]interface{}{
+				"item_id": s.reasonItem, "output_index": s.reasonIdx, "summary_index": 0, "text": s.reasoning,
+			})
+			out += respEvent("response.reasoning_summary_part.done", map[string]interface{}{
+				"item_id": s.reasonItem, "output_index": s.reasonIdx, "summary_index": 0,
+				"part": map[string]interface{}{"type": "summary_text", "text": s.reasoning},
+			})
+			ritem := map[string]interface{}{
+				"type": "reasoning", "id": s.reasonItem,
+				"summary": []interface{}{map[string]interface{}{"type": "summary_text", "text": s.reasoning}},
+			}
+			out += respEvent("response.output_item.done", map[string]interface{}{
+				"output_index": s.reasonIdx, "item": ritem,
+			})
+			output = append(output, ritem)
+		}
 		if s.textItem != "" {
 			out += respEvent("response.output_text.done", map[string]interface{}{
 				"item_id": s.textItem, "output_index": s.textIdx, "content_index": 0, "text": s.text,
