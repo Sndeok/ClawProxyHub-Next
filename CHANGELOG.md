@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.3.3 — 「只有思考没有正文」不再算空响应（2026-09-24）
+
+**背景**：thinking 类模型（glm-5.3 / glm-5.3-flash / deepseek-v4-pro …）在 `max_tokens` 偏小时
+会把预算全花在思考上，上游只推 `reasoning_content`、一帧正文都没有。插件把它当成
+「上游返回空内容」→ 429 → 网关回 502 **并把账号暂停 10 分钟**。实测：glm-5.3-flash +
+`max_tokens:16` 必现，62 帧思考 0 帧正文。
+
+**插件（配合各插件 +0.0.1）**
+- Fixed 思考增量同样计入「上游有响应」，只有思考没有正文不再被判定为空响应
+  （不再误报 429，不再误暂停账号）；思考仍按 `ContentDelta.reasoning` 独立下发。
+
+**网关**
+- Fixed 非流式聚合：正文为空但有思考时，OpenAI 用思考兜底 `content`、
+  Anthropic 兜底一个 text 块、Responses 输出 reasoning item，避免空回答。
+
 ## v1.3.2 — 思考流实时透传（首字不再空白等待）（2026-09-24）
 
 **背景**：上游（千问办公 / Cline 免费通道 / 各 reasoning 模型）在"想"的时候就已经在推

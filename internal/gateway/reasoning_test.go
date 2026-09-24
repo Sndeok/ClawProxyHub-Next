@@ -88,3 +88,40 @@ func TestResponsesEncoderReasoningItem(t *testing.T) {
 		t.Fatalf("reasoning item 未收尾: %s", out)
 	}
 }
+
+// 只有思考没有正文（max_tokens 被思考吃光）时：非流式不能返回空回答，要用思考兜底。
+func TestAggregateReasoningOnlyFallback(t *testing.T) {
+	// OpenAI：content 用思考兜底
+	o := &openaiAggregate{}
+	o.model = "m"
+	o.feed(reasoningEv("只有思考"))
+	oc, _ := o.result()["choices"].([]interface{})
+	omsg, _ := oc[0].(map[string]interface{})["message"].(map[string]interface{})
+	if omsg["content"] != "只有思考" {
+		t.Errorf("OpenAI 只有思考时 content = %v, want 只有思考", omsg["content"])
+	}
+
+	// Anthropic：兜底一个 text 块
+	a := &anthAggregate{}
+	a.model = "m"
+	a.feed(reasoningEv("只有思考"))
+	ac, _ := a.result()["content"].([]interface{})
+	if len(ac) != 1 {
+		t.Fatalf("Anthropic 只有思考时 content 块数 = %d, want 1", len(ac))
+	}
+	if blk, _ := ac[0].(map[string]interface{}); blk["text"] != "只有思考" || blk["type"] != "text" {
+		t.Errorf("Anthropic 兜底块异常: %v", blk)
+	}
+
+	// Responses：输出 reasoning item
+	r := &responsesAggregate{}
+	r.model = "m"
+	r.feed(reasoningEv("只有思考"))
+	ro, _ := r.result()["output"].([]interface{})
+	if len(ro) != 1 {
+		t.Fatalf("Responses 只有思考时 output 项数 = %d, want 1", len(ro))
+	}
+	if item, _ := ro[0].(map[string]interface{}); item["type"] != "reasoning" {
+		t.Errorf("Responses 兜底项类型 = %v, want reasoning", item["type"])
+	}
+}

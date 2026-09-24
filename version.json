@@ -1,23 +1,19 @@
 {
-  "version": "1.3.2",
-  "release_url": "https://github.com/Sndeok/ClawProxyHub-Next/releases/tag/v1.3.2",
+  "version": "1.3.3",
+  "release_url": "https://github.com/Sndeok/ClawProxyHub-Next/releases/tag/v1.3.3",
   "changelog": {
     "title": {
-      "zh": "v1.3.2 — 思考流实时透传",
-      "en": "v1.3.2 — live reasoning passthrough"
+      "zh": "v1.3.3 — 只有思考没有正文不再算空响应",
+      "en": "v1.3.3 — reasoning-only is not an empty response"
     },
     "items": [
       {
-        "zh": "思考增量实时下发（OpenAI: reasoning_content / Anthropic: thinking 块 / Codex: reasoning item）",
-        "en": "Reasoning deltas streamed live (reasoning_content / thinking block / reasoning item)"
+        "zh": "修复：只有思考没有正文被误判为空响应 → 502 且账号被暂停 10 分钟",
+        "en": "Fix: reasoning-only responses no longer flagged as empty (no 502 / no account pause)"
       },
       {
-        "zh": "首字不再是空白等待：模型一开始思考就能看到内容流动",
-        "en": "No more blank wait before the first visible token"
-      },
-      {
-        "zh": "插件契约新增 ContentDelta.reasoning（向后兼容）",
-        "en": "New additive ContentDelta.reasoning field"
+        "zh": "非流式回答为空时用思考兜底 content，不再返回空回答",
+        "en": "Non-stream responses fall back to reasoning text when content is empty"
       }
     ]
   }

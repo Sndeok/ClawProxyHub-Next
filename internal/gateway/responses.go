@@ -374,6 +374,13 @@ type responsesAggregate struct {
 
 func (a *responsesAggregate) result() map[string]interface{} {
 	var output []interface{}
+	if a.text == "" && a.reasoning != "" && len(a.tools) == 0 {
+		// 只有思考没有正文：输出 reasoning item，避免 output 为空数组（Codex 侧看不到任何内容）
+		output = append(output, map[string]interface{}{
+			"type": "reasoning", "id": "item_rs0",
+			"summary": []interface{}{map[string]interface{}{"type": "summary_text", "text": a.reasoning}},
+		})
+	}
 	if a.text != "" {
 		output = append(output, map[string]interface{}{
 			"type": "message", "id": "item_0", "role": "assistant", "status": "completed",

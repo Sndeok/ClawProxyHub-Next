@@ -267,6 +267,11 @@ func (a *openaiAggregate) result() map[string]interface{} {
 	msg := map[string]interface{}{"role": "assistant", "content": a.text}
 	if a.reasoning != "" {
 		msg["reasoning_content"] = a.reasoning
+		// 只有思考没有正文（例如 max_tokens 太小、预算被思考吃光）：用思考兜底 content，
+		// 否则非流式客户端会拿到空回答，健康检查/简单客户端会判成失败。
+		if a.text == "" {
+			msg["content"] = a.reasoning
+		}
 	}
 	if len(a.tools) > 0 {
 		msg["content"] = nil

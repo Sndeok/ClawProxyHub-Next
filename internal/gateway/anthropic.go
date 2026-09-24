@@ -395,8 +395,12 @@ type anthAggregate struct {
 // result 生成非流式 Message JSON。
 func (a *anthAggregate) result() map[string]interface{} {
 	var content []interface{}
-	if a.text != "" {
-		content = append(content, map[string]interface{}{"type": "text", "text": a.text})
+	text := a.text
+	if text == "" && a.reasoning != "" {
+		text = a.reasoning // 只有思考没有正文时兜底，避免返回空 content
+	}
+	if text != "" {
+		content = append(content, map[string]interface{}{"type": "text", "text": text})
 	}
 	for _, id := range sortedKeys(a.tools) {
 		t := a.tools[id]
